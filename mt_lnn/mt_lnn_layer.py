@@ -88,28 +88,69 @@ class MultiScaleResonance(nn.Module):
 
 
 # ---------------------------------------------------------------------------
-# LateralCoupling — 13×13 inter-protofilament interaction
+# LateralCoupling — content-aware coupling across 13 protofilaments (RMC-style)
 # ---------------------------------------------------------------------------
 
 class LateralCoupling(nn.Module):
     """
-    Learned 13×13 coupling matrix between protofilaments.
-    Initialised as near-identity (eye + small noise) so the model starts
-    with independent protofilaments and learns coupling during training.
+    Relational Memory Core (RMC) style coupling: instead of a fixed 13×13 matrix,
+    treat the 13 protofilaments as memory slots and let them mix via a single
+    attention head.
+
+        Coupling(H) = softmax(Q K^T / √d) V
+
+    where Q, K, V are linear projections of the per-protofilament state H.
+
+    A static W_lat residual term is kept (initialised to identity) so the layer
+    starts as a no-op and the attention contribution is added in gradually via
+    a learned scalar gate.
+
+    h: (B, T, P=13, d_proto)
     """
 
-    def __init__(self, n_protofilaments: int):
+    def __init__(self, n_protofilaments: int, d_proto: int):
         super().__init__()
         self.n_protofilaments = n_protofilaments
+        self.d_proto = d_proto
+        self.scale = math.sqrt(d_proto)
+
+        # RMC-style content-aware mixing
+        self.q_proj = nn.Linear(d_proto, d_proto, bias=False)
+        self.k_proj = nn.Linear(d_proto, d_proto, bias=False)
+        self.v_proj = nn.Linear(d_proto, d_proto, bias=False)
+        self.out_proj = nn.Linear(d_proto, d_proto, bias=False)
+
+        # Learned identity-residual matrix (kept for stability at init)
         self.W_lat = nn.Parameter(torch.eye(n_protofilaments))
+
+        # Gate that controls how much RMC contributes vs identity residual.
+        # Init at 0 → layer starts as pure identity coupling, gradually mixes in.
+        self.rmc_gate = nn.Parameter(torch.zeros(()))
 
     def forward(self, h: torch.Tensor) -> torch.Tensor:
         """
-        h: (B, T, n_protofilaments, d_proto)
-        Returns: (B, T, n_protofilaments, d_proto)  — after coupling
+        h: (B, T, P, d_proto)  — P = 13 protofilaments treated as memory slots
         """
-        # einsum: for each position, mix across protofilament dimension
-        return torch.einsum("btpd,pq->btqd", h, self.W_lat)
+        # Identity-style residual: static W_lat across protofilament dim
+        residual = torch.einsum("btpd,pq->btqd", h, self.W_lat)
+
+        # RMC: per-(B,T) attention over P slots
+        B, T, P, D = h.shape
+        h_flat = h.reshape(B * T, P, D)                              # treat (B,T) as batch
+        q = self.q_proj(h_flat)
+        k = self.k_proj(h_flat)
+        v = self.v_proj(h_flat)
+        # SDPA: shape (B*T, P, D) → SDPA wants (..., L, S) so add a head dim
+        q = q.unsqueeze(1)                                            # (B*T, 1, P, D)
+        k = k.unsqueeze(1)
+        v = v.unsqueeze(1)
+        attn_out = F.scaled_dot_product_attention(q, k, v)            # (B*T, 1, P, D)
+        attn_out = attn_out.squeeze(1)                                # (B*T, P, D)
+        rmc = self.out_proj(attn_out).reshape(B, T, P, D)
+
+        # Gated mix: gate sigmoid keeps it in [0,1]
+        g = torch.sigmoid(self.rmc_gate)
+        return residual + g * rmc
 
 
 # ---------------------------------------------------------------------------
@@ -171,7 +212,7 @@ class MTLNNLayer(nn.Module):
             MultiScaleResonance(config) for _ in range(config.n_protofilaments)
         ])
 
-        self.lateral = LateralCoupling(config.n_protofilaments)
+        self.lateral = LateralCoupling(config.n_protofilaments, config.d_proto)
 
         # GTP hydrolysis: scalar γ for lateral gating; temporal decay exp(-γ*t)
         self.gtp_gamma = nn.Parameter(torch.tensor(config.gamma_init))

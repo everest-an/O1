@@ -27,26 +27,49 @@ def init_weights(module: nn.Module, config) -> None:
 
 
 def init_mt_params(model: nn.Module, config) -> None:
-    """Override specific MT parameter initialisations after standard init."""
+    """
+    Apply MT-specific parameter initialisations after standard init.
+
+    Strategy: keep the model behaving like a standard Transformer at step 0,
+    then let microtubule dynamics emerge during training.
+      - τ initialised to `tau_init` (≈1.0) so closed-form LTC is well-conditioned
+      - polarity ≈ 0  → attention is approximately symmetric/causal at start
+      - GTP γ small  → attention spans far positions initially
+      - lateral W_lat = eye → protofilaments independent at start
+      - rmc_gate = 0 → RMC contribution starts at zero, ramps up during training
+      - coherence_scale = 0.05 (small) → global coherence layer near-identity
+      - out_proj of MTLNNLayer scaled small (std=0.01) → block residual is small
+    """
     for name, param in model.named_parameters():
         if "log_tau" in name:
-            # τ = softplus(log_tau) + tau_min ≈ tau_init when log_tau = log(exp(tau_init - tau_min) - 1)
             target = math.log(math.exp(config.tau_init - config.tau_min) - 1.0 + 1e-6)
             nn.init.constant_(param, target)
-        elif "gamma" in name and "gtp" not in name.lower():
-            nn.init.constant_(param, config.gamma_init)
-        elif "polarity_direction" in name:
-            nn.init.uniform_(param, -0.1, 0.1)
-        elif "W_lat" in name:
-            # Near-identity: eye + small noise
+        elif name.endswith("polarity_direction"):
+            nn.init.uniform_(param, -0.05, 0.05)
+        elif name.endswith("W_lat"):
             nn.init.eye_(param)
-            param.data += torch.randn_like(param) * 0.01
-        elif "coherence_scale" in name:
-            nn.init.constant_(param, 0.1)
-        elif "collapse_threshold" in name:
+            param.data += torch.randn_like(param) * 0.005
+        elif name.endswith("rmc_gate"):
+            nn.init.zeros_(param)               # sigmoid(0)=0.5 — but we re-zero below
+            # Actually want sigmoid(rmc_gate) ≈ 0 at start; use large negative init
+            nn.init.constant_(param, -3.0)      # sigmoid(-3) ≈ 0.047
+        elif name.endswith("coherence_scale"):
+            nn.init.constant_(param, 0.05)
+        elif name.endswith("collapse_threshold"):
             nn.init.constant_(param, 0.5)
-        elif "blend_weights" in name:
-            nn.init.zeros_(param)           # softmax(zeros) = uniform blend
+        elif name.endswith("blend_weights"):
+            nn.init.zeros_(param)               # softmax(zeros) = uniform
+        elif name.endswith("gtp_gamma"):
+            # In MicrotubuleAttention this is in raw (softplus⁻¹) space → keep ctor init.
+            # In MTLNNLayer this is in real space → re-set to a small positive value.
+            if param.dim() == 0:
+                nn.init.constant_(param, config.gamma_init)
+        # MTLNNLayer.out_proj small init for residual stability
+        # (matches names like "blocks.0.lnn.out_proj.weight")
+        elif "lnn.out_proj.weight" in name:
+            nn.init.normal_(param, mean=0.0, std=0.01)
+        elif "lnn.out_proj.bias" in name:
+            nn.init.zeros_(param)
 
 
 # ---------------------------------------------------------------------------

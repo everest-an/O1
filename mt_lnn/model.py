@@ -199,7 +199,7 @@ class MTLNNModel(nn.Module):
         """Return a dict of MT health metrics for monitoring during training."""
         diag: Dict[str, float] = {}
         tau_vals, gamma_vals, pol_vals = [], [], []
-        lat_norms = []
+        lat_norms, rmc_gates = [], []
 
         for block in self.blocks:
             for proto in block.lnn.protofilaments:
@@ -211,11 +211,14 @@ class MTLNNModel(nn.Module):
             W = block.lnn.lateral.W_lat
             off_diag = W - torch.eye(W.shape[0], device=W.device)
             lat_norms.append(off_diag.norm().item())
+            rmc_gates.append(torch.sigmoid(block.lnn.lateral.rmc_gate).item())
 
         if tau_vals:
             t = torch.tensor(tau_vals)
             diag["tau_mean"] = t.mean().item()
             diag["tau_std"] = t.std().item()
+            diag["tau_min"] = t.min().item()
+            diag["tau_max"] = t.max().item()
         if gamma_vals:
             diag["gamma_mean"] = sum(gamma_vals) / len(gamma_vals)
         if pol_vals:
@@ -224,7 +227,25 @@ class MTLNNModel(nn.Module):
             diag["polarity_std"] = p.std().item()
         if lat_norms:
             diag["lat_coupling_mean_off_diag_norm"] = sum(lat_norms) / len(lat_norms)
+        if rmc_gates:
+            diag["rmc_gate_mean"] = sum(rmc_gates) / len(rmc_gates)
 
         diag["coherence_scale"] = self.coherence.coherence_scale.item()
         diag["collapse_threshold"] = self.coherence.collapse_threshold.item()
+        diag["collapse_gate_last"] = self.coherence.last_gate.item()
         return diag
+
+    def get_mt_histograms(self) -> Dict[str, torch.Tensor]:
+        """Return raw tensors for W&B histogram logging."""
+        taus, gammas, pols = [], [], []
+        for block in self.blocks:
+            for proto in block.lnn.protofilaments:
+                for ltc in proto.ltcs:
+                    taus.append(F.softplus(ltc.log_tau).detach() + self.config.tau_min)
+            gammas.append(block.lnn.gtp_gamma.detach())
+            pols.append(block.attn.polarity_direction.detach())
+        return {
+            "tau": torch.stack(taus).cpu().float(),
+            "gamma": torch.stack(gammas).cpu().float(),
+            "polarity": torch.cat(pols).cpu().float(),
+        }

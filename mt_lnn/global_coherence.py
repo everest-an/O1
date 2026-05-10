@@ -38,6 +38,10 @@ class GlobalCoherenceLayer(nn.Module):
         self.layer_norm = nn.LayerNorm(config.d_model)
         self.dropout = nn.Dropout(config.dropout)
 
+        # Diagnostic buffer: last forward's collapse-gate activation in [0,1].
+        # Not a parameter, not saved in state_dict — purely for monitoring.
+        self.register_buffer("last_gate", torch.zeros(()), persistent=False)
+
     def _sparse_causal_scores(
         self, scores: torch.Tensor, q_pos: torch.Tensor, k_pos: torch.Tensor
     ) -> torch.Tensor:
@@ -92,6 +96,8 @@ class GlobalCoherenceLayer(nn.Module):
             causal = (k_pos[None, :] <= q_pos[:, None]).float()
             mean_energy = (raw * causal[None, None, :, :]).sum() / (causal.sum() * B * H + 1e-9)
         gate = torch.sigmoid((mean_energy - self.collapse_threshold) * 10.0)
+        # Stash for diagnostics (no_grad already in effect for the energy calc)
+        self.last_gate = gate.detach()
 
         attn = F.softmax(scores, dim=-1)
         attn = self.dropout(attn)

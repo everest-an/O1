@@ -4,9 +4,11 @@
 
 - **Liquid Neural Networks** (closed-form LTC) replacing the Transformer FFN
 - **Microtubule architecture** — 13 protofilaments, dynamic-instability ODE, lateral coupling, GTP hydrolysis gating, MAP-protein gating, multi-scale resonance
-- **Microtubule attention** — polarity-biased causal attention with GTP-cap distance gating
+- **Microtubule attention** — polarity-biased causal attention with GTP-cap distance gating, computed via `torch.nn.functional.scaled_dot_product_attention` (Flash-Attention / mem-efficient backend)
 - **Global coherence layer** — sparse top-k attention with an Orch-OR-inspired collapse gate
 - **GQA + KV cache** — efficient streaming inference with dual-state management (attention KV + LNN recurrent state)
+- **RMC-style lateral coupling** — content-aware mixing across the 13 protofilaments via a one-head self-attention (gradually gated in from a static identity baseline)
+- **Memory-mapped data + torch.compile + W&B** — production-ready training pipeline
 
 The goal is a biologically-inspired architecture for long-text and dynamic tasks, drawing on Penrose-Hameroff Orch-OR and Liquid AI's LFM line.
 
@@ -42,14 +44,18 @@ python tests/test_model.py
 ### Smoke train on dummy data (no dataset download)
 
 ```bash
-python train.py --d_model 128 --n_layers 2 --n_heads 4 --batch 2 \
-                --seq_len 32 --steps 200 --dummy
+python train.py --d_model 128 --n_layers 2 --n_heads 4 --n_kv_heads 2 \
+                --batch 2 --seq_len 32 --steps 200 --dummy --vocab_size 200
 ```
 
 ### Train ~125M model on WikiText-103
 
 ```bash
-python train.py        # defaults: d_model=1024, n_layers=12, n_heads=16
+# 1) Tokenise once into memory-mapped binary files
+python prepare_data.py
+
+# 2) Train (defaults: d_model=1024, n_layers=12, n_heads=16, GQA n_kv_heads=4)
+python train.py --compile --wandb
 ```
 
 ### Generate with KV cache
@@ -103,17 +109,18 @@ The dual-cache `ModelCacheStruct` carries:
 mt_lnn/
   config.py            MTLNNConfig (single source of truth)
   embedding.py         TokenEmbedding + RoPE (with position offset)
-  mt_attention.py      MicrotubuleAttention — GQA, KV cache, polarity, GTP
+  mt_attention.py      MicrotubuleAttention — GQA, KV cache, SDPA backend
   mt_lnn_layer.py      ProtofilamentLTC, MultiScaleResonance,
-                       LateralCoupling, MAPGate, MTLNNLayer
+                       RMC LateralCoupling, MAPGate, MTLNNLayer
   global_coherence.py  GlobalCoherenceLayer (sparse top-k + collapse gate)
   model.py             MTLNNBlock, MTLNNModel, ModelCacheStruct
   utils.py             init_weights, count_parameters, scheduler,
                        checkpointing, separate-LR param groups
-train.py               WikiText-103 + dummy data training
+prepare_data.py        Tokenise to uint16 .bin (numpy.memmap-friendly)
+train.py               BinDataset / DummyDataset, AMP, torch.compile, W&B
 eval.py                Perplexity + MT diagnostics
 demo.py                KV-cached autoregressive generation
-tests/test_model.py    Full test suite
+tests/test_model.py    Full test suite (7 tests, all pass)
 ```
 
 ## Design references
