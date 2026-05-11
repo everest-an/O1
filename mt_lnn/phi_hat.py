@@ -114,27 +114,64 @@ def compute_phi_hat(hidden: torch.Tensor, K: int = 4, k_nn: int = 3) -> float:
 # ---------------------------------------------------------------------------
 
 @torch.no_grad()
+def _hidden_states_from_model(model, input_ids: torch.Tensor) -> torch.Tensor:
+    """
+    Run a forward pass and return final hidden states (B, T, d) — just before
+    lm_head. Handles both gwtb_per_block=True (GWTB inside each block) and
+    gwtb_per_block=False (single top-level GWTB).
+    """
+    x = model.embedding(input_ids)
+    for block in model.blocks:
+        x, _ = block(x)
+    # Top-level GWTB is None when gwtb_per_block=True (each block ran its own).
+    if model.gwtb is not None:
+        x, _ = model.gwtb(x)
+    x, _ = model.coherence(x)
+    return model.final_norm(x)
+
+
+@torch.no_grad()
 def compute_phi_hat_from_model(
     model,
     input_ids: torch.Tensor,
     K: int = 4,
     k_nn: int = 3,
+    n_batches: int = 10,
 ) -> float:
     """
-    Run `model(input_ids)` and compute Φ̂ over its final hidden states.
+    Compute Φ̂ over the model's final hidden states.
 
-    Uses the activations just before lm_head — i.e. after final_norm. We
-    flatten (B, T, d) → (B·T, d) and treat each token position as one sample.
+    Runs `n_batches` independent forward passes with fresh random token batches
+    of the same shape as `input_ids`, collects all (B·T) activation samples,
+    and returns a single averaged Φ̂.  Averaging reduces kNN-estimator variance
+    by ~√n_batches — important for the pass/fail stability of the anesthesia test.
+
+    Parameters
+    ----------
+    model      : MTLNNModel
+    input_ids  : (B, T) seed batch — shape used for all n_batches passes
+    K          : partition count for Φ̂ (default 4)
+    k_nn       : kNN index for entropy estimator (default 3)
+    n_batches  : number of independent random batches to average over (default 10)
     """
     model.eval()
-    x = model.embedding(input_ids)
-    for block in model.blocks:
-        x, _ = block(x)
-    x, _ = model.gwtb(x)
-    x, _ = model.coherence(x)
-    x = model.final_norm(x)                                        # (B, T, d)
-    flat = x.reshape(-1, x.shape[-1])
-    return compute_phi_hat(flat, K=K, k_nn=k_nn)
+    B, T = input_ids.shape
+    device = input_ids.device
+
+    phi_vals = []
+    for i in range(n_batches):
+        # First pass uses the provided ids; subsequent passes use random tokens
+        # of the same shape so the estimate is not tied to one specific prompt.
+        ids = input_ids if i == 0 else torch.randint(
+            0, model.config.vocab_size, (B, T), device=device
+        )
+        x = _hidden_states_from_model(model, ids)       # (B, T, d)
+        flat = x.reshape(-1, x.shape[-1])               # (B·T, d)
+        phi = compute_phi_hat(flat, K=K, k_nn=k_nn)
+        if not (phi != phi):                            # skip NaN (too few samples)
+            phi_vals.append(phi)
+
+    return float(sum(phi_vals) / len(phi_vals)) if phi_vals else float("nan")
 
 
 # ---------------------------------------------------------------------------

@@ -136,7 +136,7 @@ The $\gamma_h$ are initialised on a geometric schedule, $\gamma_h = \gamma_0 \cd
 
 ### 4.3 Global Workspace Theory Bottleneck (GWTB)
 
-A standalone post-stack layer that enforces the capacity-limited compression that GWT predicts.
+A capacity-limited compression / processing / broadcast triad. By default GWTB is applied **once after the entire block stack**, but a single config flag (`gwtb_per_block=True`) instead places one GWTB inside every block — the paper's original §4 architecture. Per-block mode adds approximately 3 % parameters and 10 % wall-clock per layer at the default $d_{gw} = 104$, in exchange for layer-wise ignition semantics.
 
 **Compression (ignition).** $\mathbf{z}_t = \mathrm{LN}(W_\text{comp}\,\mathbf{x}_t) \in \mathbb{R}^{d_{gw}}$, with $d_{gw} = d_\text{model}/r$ (default $r = 8$ → $d_{gw} = 104$ for the 125M config).
 
@@ -181,7 +181,7 @@ where $\varepsilon_i$ is the L∞ distance from sample $i$ to its $k$-th nearest
 
 $$\hat{\Phi}(\mathbf{h}) = \sum_{j=1}^{K} \hat{H}(s_j) - \hat{H}(\mathbf{h})$$
 
-over a $K$-way partition $\mathbf{h} = (s_1, \dots, s_K)$ of the final hidden state, computed over $N$ token positions in a mini-batch. Defaults: $K=4$, $k=3$, $N \le 512$.
+over a $K$-way partition $\mathbf{h} = (s_1, \dots, s_K)$ of the final hidden state, computed over $N$ token positions in a mini-batch. The kNN estimator has significant variance at small $N$, so the production helper averages Φ̂ over $n_\text{batches} = 10$ independent random batches of the same shape — reducing variance by ~$\sqrt{n_\text{batches}}$, which materially improves pass/fail stability of the anesthesia test. Defaults: $K=4$, $k=3$, $N \le 512$, $n_\text{batches} = 10$.
 
 A self-test: random Gaussian activations (independent parts) yield Φ̂ $\approx 0$; activations with shared latent factors yield Φ̂ $\gg 0$. The implementation lives in `mt_lnn/phi_hat.py` and is exposed via `compute_phi_hat`, `phi_hat_anesthesia_sweep`, and `anesthesia_test_result`.
 
@@ -411,7 +411,8 @@ The runtime `AnesthesiaController` exposes a single $\ell \in [0,1]$ scalar; the
 | §4.2 Polarity bias | `MicrotubuleAttention._build_attn_bias` | scalar default, low-rank opt-in |
 | §4.2 ALiBi-style γ schedule | `_build_alibi_gamma` | geometric 64× spread |
 | §4.2 GQA + KV cache | `MicrotubuleAttention.forward` | 1 KV head, 13 Q heads default |
-| §4.3 GWTB | `gwtb.py::GWTBLayer` | compress→SA→broadcast |
+| §4.3 GWTB (single top-level) | `gwtb.py::GWTBLayer` | compress→SA→broadcast |
+| §4.3 GWTB-per-block (paper default) | `model.py::MTLNNBlock` with `gwtb_per_block=True` | one GWTB inside every block, mutually exclusive with the top-level instance |
 | §4.4 GlobalCoherence (Orch-OR) | `global_coherence.py::GlobalCoherenceLayer` | sparse top-k + collapse gate |
 | §5.2 AnesthesiaController | `anesthesia.py` | runtime hooks |
 | §5.3 Φ̂ | `phi_hat.py` | KSG kNN entropy estimator |

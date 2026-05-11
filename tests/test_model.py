@@ -323,6 +323,61 @@ def test_gwtb_cache_parity():
     print("[ok] test_gwtb_cache_parity")
 
 
+def test_gwtb_per_block_mode():
+    """
+    With gwtb_per_block=True:
+      - top-level model.gwtb is None
+      - every MTLNNBlock has its own gwtb sublayer
+      - forward + backward work, every gwtb param has gradients
+      - cache parity holds (parallel-LNN mode) — i.e. the per-block GWTB
+        KV cache slots are threaded correctly
+    """
+    cfg = MTLNNConfig(
+        vocab_size=200, max_seq_len=64, d_model=128, n_layers=2,
+        n_heads=4, n_kv_heads=2, d_head=32, dropout=0.0,
+        attention_dropout=0.0, gwtb_per_block=True,
+    )
+    model = MTLNNModel(cfg).eval()
+
+    # Structural assertions
+    assert model.gwtb is None, "top-level GWTB should be disabled per-block mode"
+    for i, blk in enumerate(model.blocks):
+        assert blk.has_gwtb and blk.gwtb is not None, \
+            f"block {i} missing per-block GWTB"
+
+    # Forward + backward
+    ids = torch.randint(0, cfg.vocab_size, (2, 16))
+    model.train()
+    out = model(ids, labels=ids)
+    out["loss"].backward()
+    for name, p in model.named_parameters():
+        if ".gwtb." in name:
+            assert p.grad is not None and p.grad.isfinite().all(), \
+                f"per-block GWTB param {name} has bad grad"
+    model.eval()
+
+    # Cache parity (parallel-LNN mode for bit-exact comparison)
+    torch.manual_seed(11)
+    T = 10
+    ids = torch.randint(0, cfg.vocab_size, (1, T))
+    with torch.no_grad():
+        full = model(ids, use_lnn_recurrence=False)["logits"]
+
+    cache = None
+    step_logits = []
+    with torch.no_grad():
+        for t in range(T):
+            o = model(ids[:, t:t+1], cache=cache, use_cache=True,
+                       use_lnn_recurrence=False)
+            cache = o["cache"]
+            step_logits.append(o["logits"][:, -1, :])
+    stacked = torch.stack(step_logits, dim=1)
+    diff = (full - stacked).abs().max().item()
+    print(f"  per-block GWTB cache parity: {diff:.6e}")
+    assert diff < 1e-4, f"per-block GWTB broke cache parity: {diff}"
+    print("[ok] test_gwtb_per_block_mode")
+
+
 def test_phi_hat_basic():
     """
     Phi_hat should be FINITE and HIGHER for correlated parts than for independent parts.
@@ -514,6 +569,7 @@ def run_all():
     test_nearest_neighbor_coupling()
     test_gwtb_bottleneck()
     test_gwtb_cache_parity()
+    test_gwtb_per_block_mode()
     test_phi_hat_basic()
     test_anesthesia_validation_protocol()
     test_anesthesia_collapse()

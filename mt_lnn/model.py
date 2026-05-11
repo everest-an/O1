@@ -23,9 +23,16 @@ from .gwtb import GWTBLayer
 from .utils import init_weights, init_mt_params
 
 
-# Type aliases for clarity
+# Type aliases for clarity.
+# LayerCache is now a 3-tuple: (attention KV, LNN recurrent state, per-block GWTB KV).
+# The third slot is None when gwtb_per_block=False so the cache structure stays
+# identical for both modes — code reads cache.layers[i][2] unconditionally.
 KVCache    = Tuple[torch.Tensor, torch.Tensor]                          # (K, V)
-LayerCache = Tuple[Optional[KVCache], Optional[torch.Tensor]]            # (kv, h_prev)
+LayerCache = Tuple[
+    Optional[KVCache],          # 0: attention KV
+    Optional[torch.Tensor],     # 1: MT-DL recurrent h_prev
+    Optional[KVCache],          # 2: per-block GWTB KV (None if not per-block)
+]
 
 
 class ModelCacheStruct:
@@ -37,15 +44,29 @@ class ModelCacheStruct:
 
 
 class MTLNNBlock(nn.Module):
-    """One transformer-style block with microtubule attention + LNN layer."""
+    """One transformer-style block with microtubule attention + LNN layer.
+
+    If `config.gwtb_per_block` is True, the block additionally contains a
+    GWTBLayer that runs after the LNN sub-layer — matching the paper §4
+    architecture where every block ignites its own workspace.
+    """
 
     def __init__(self, config: MTLNNConfig, layer_idx: int):
         super().__init__()
         self.layer_idx = layer_idx
+        self.has_gwtb = config.gwtb_per_block
+
         self.attn_norm = nn.LayerNorm(config.d_model)
         self.attn: MicrotubuleAttention   # set by parent after embedding init
         self.lnn_norm = nn.LayerNorm(config.d_model)
         self.lnn = MTLNNLayer(config)
+
+        if self.has_gwtb:
+            self.gwtb_norm = nn.LayerNorm(config.d_model)
+            self.gwtb = GWTBLayer(config)
+        else:
+            self.gwtb_norm = None
+            self.gwtb = None
 
     def forward(
         self,
@@ -57,8 +78,11 @@ class MTLNNBlock(nn.Module):
         use_lnn_recurrence: bool = True,
     ) -> Tuple[torch.Tensor, Optional[LayerCache]]:
 
-        past_kv = layer_cache[0] if layer_cache is not None else None
-        h_prev  = layer_cache[1] if (layer_cache is not None and use_lnn_recurrence) else None
+        past_kv      = layer_cache[0] if layer_cache is not None else None
+        h_prev       = (layer_cache[1] if (layer_cache is not None and use_lnn_recurrence)
+                        else None)
+        past_gwtb_kv = (layer_cache[2] if (layer_cache is not None and len(layer_cache) > 2)
+                        else None)
 
         # Attention sub-layer (pre-norm)
         attn_out, new_kv = self.attn(
@@ -71,10 +95,23 @@ class MTLNNBlock(nn.Module):
         x = x + attn_out
 
         # LNN sub-layer (pre-norm)
-        lnn_out, h_last = self.lnn(self.lnn_norm(x), h_prev, position_offset=position_offset)
+        lnn_out, h_last = self.lnn(self.lnn_norm(x), h_prev,
+                                    position_offset=position_offset)
         x = x + lnn_out
 
-        new_cache: Optional[LayerCache] = (new_kv, h_last) if use_cache else None
+        # Per-block GWTB (pre-norm, gated residual already inside GWTBLayer)
+        new_gwtb_kv = None
+        if self.has_gwtb:
+            x, new_gwtb_kv = self.gwtb(
+                self.gwtb_norm(x),
+                past_kv=past_gwtb_kv,
+                position_offset=position_offset,
+                use_cache=use_cache,
+            )
+
+        new_cache: Optional[LayerCache] = (
+            (new_kv, h_last, new_gwtb_kv) if use_cache else None
+        )
         return x, new_cache
 
 
@@ -93,9 +130,15 @@ class MTLNNModel(nn.Module):
             block.attn = MicrotubuleAttention(config, rope=self.embedding.rope)
             self.blocks.append(block)
 
-        # Global Workspace Theory Bottleneck (capacity-limited broadcast) —
-        # runs once at the end of the stack, after all microtubule blocks.
-        self.gwtb = GWTBLayer(config)
+        # Global Workspace Theory Bottleneck.
+        # If gwtb_per_block=True the bottleneck lives inside every block (paper
+        # §4 default). Otherwise it's applied once after the entire stack.
+        # Mutually exclusive to avoid double-broadcasting the workspace.
+        self.gwtb_per_block = config.gwtb_per_block
+        if not config.gwtb_per_block:
+            self.gwtb = GWTBLayer(config)
+        else:
+            self.gwtb = None
 
         # Orch-OR collapse layer (complementary to GWTB)
         self.coherence = GlobalCoherenceLayer(config)
@@ -162,13 +205,15 @@ class MTLNNModel(nn.Module):
             if use_cache:
                 new_cache.layers.append(new_layer_cache)
 
-        # GWTB: capacity-limited workspace bottleneck + broadcast
-        gwtb_past = cache.gwtb_kv if cache is not None else None
-        x, gwtb_new_kv = self.gwtb(
-            x, past_kv=gwtb_past, position_offset=position_offset, use_cache=use_cache
-        )
-        if use_cache:
-            new_cache.gwtb_kv = gwtb_new_kv
+        # Top-level GWTB (only if gwtb_per_block=False).
+        if self.gwtb is not None:
+            gwtb_past = cache.gwtb_kv if cache is not None else None
+            x, gwtb_new_kv = self.gwtb(
+                x, past_kv=gwtb_past, position_offset=position_offset,
+                use_cache=use_cache,
+            )
+            if use_cache:
+                new_cache.gwtb_kv = gwtb_new_kv
 
         coh_past = cache.coherence_kv if cache is not None else None
         x, coh_new_kv = self.coherence(
@@ -250,8 +295,19 @@ class MTLNNModel(nn.Module):
         diag["coherence_scale"] = self.coherence.coherence_scale.item()
         diag["collapse_threshold"] = self.coherence.collapse_threshold.item()
         diag["collapse_gate_last"] = self.coherence.last_gate.item()
-        diag["gwtb_broadcast_gate"] = self.gwtb.broadcast_gate.item()
-        diag["gwtb_d_gw"] = float(self.gwtb.d_gw)
+
+        if self.gwtb is not None:
+            # Single top-level GWTB
+            diag["gwtb_broadcast_gate"] = self.gwtb.broadcast_gate.item()
+            diag["gwtb_d_gw"] = float(self.gwtb.d_gw)
+        else:
+            # Per-block GWTB — report mean / spread across blocks
+            gates = [b.gwtb.broadcast_gate.item() for b in self.blocks if b.has_gwtb]
+            if gates:
+                gates_t = torch.tensor(gates)
+                diag["gwtb_broadcast_gate_mean"] = gates_t.mean().item()
+                diag["gwtb_broadcast_gate_std"]  = gates_t.std().item()
+                diag["gwtb_d_gw"] = float(self.blocks[0].gwtb.d_gw)
         return diag
 
     def get_mt_histograms(self) -> Dict[str, torch.Tensor]:

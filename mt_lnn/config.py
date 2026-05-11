@@ -59,6 +59,11 @@ class MTLNNConfig:
     gwtb_compression_ratio: int = 8
     gwtb_n_heads: int = 4
     gwtb_broadcast_init: float = 0.01
+    # If True, every MTLNNBlock contains its own GWTB instance (paper §4).
+    # If False (default), GWTB is applied once after the block stack.
+    # Per-block adds ~3% parameters and ~10% wall-clock per layer at d_gw=104,
+    # in exchange for the layer-wise ignition semantics the paper prescribes.
+    gwtb_per_block: bool = False
 
     # Global coherence (Orch-OR collapse, complementary to GWTB)
     coherence_sparsity: float = 0.1  # keep top 10% of attention scores
