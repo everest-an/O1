@@ -262,6 +262,63 @@ def test_nearest_neighbor_coupling():
     print("[ok] test_nearest_neighbor_coupling")
 
 
+def test_gwtb_bottleneck():
+    """
+    Verify the GWT Bottleneck:
+      - d_gw < d_model (capacity-limited)
+      - all GWTB params receive gradients
+      - broadcast_gate starts at the configured small value
+    """
+    cfg = small_config()
+    model = MTLNNModel(cfg).train()
+    assert model.gwtb.d_gw < cfg.d_model, \
+        f"GWTB d_gw={model.gwtb.d_gw} should be < d_model={cfg.d_model}"
+    assert abs(model.gwtb.broadcast_gate.item() - cfg.gwtb_broadcast_init) < 1e-6, \
+        "broadcast_gate didn't initialise to configured value"
+
+    ids = torch.randint(0, cfg.vocab_size, (2, 16))
+    out = model(ids, labels=ids)
+    out["loss"].backward()
+    live = 0
+    for name, p in model.named_parameters():
+        if name.startswith("gwtb."):
+            assert p.grad is not None and p.grad.isfinite().all(), \
+                f"GWTB param {name} has bad grad"
+            live += 1
+    print(f"  d_gw={model.gwtb.d_gw}  d_model={cfg.d_model}  "
+          f"compression={cfg.d_model // model.gwtb.d_gw}×  live grads on {live} GWTB params")
+    assert live >= 5
+    print("[ok] test_gwtb_bottleneck")
+
+
+def test_gwtb_cache_parity():
+    """Cached vs full forward with GWTB enabled must remain bit-exact (parallel LNN mode)."""
+    torch.manual_seed(99)
+    cfg = small_config()
+    model = MTLNNModel(cfg).eval()
+
+    T = 10
+    ids = torch.randint(0, cfg.vocab_size, (1, T))
+
+    with torch.no_grad():
+        full = model(ids, use_lnn_recurrence=False)["logits"]
+
+    cache = None
+    step_logits = []
+    with torch.no_grad():
+        for t in range(T):
+            out = model(ids[:, t:t+1], cache=cache, use_cache=True,
+                        use_lnn_recurrence=False)
+            cache = out["cache"]
+            step_logits.append(out["logits"][:, -1, :])
+    stacked = torch.stack(step_logits, dim=1)
+
+    diff = (full - stacked).abs().max().item()
+    print(f"  GWTB cache parity diff: {diff:.6e}")
+    assert diff < 1e-4, f"GWTB broke cache parity: {diff}"
+    print("[ok] test_gwtb_cache_parity")
+
+
 def test_anesthesia_collapse():
     """
     Anesthesia validation: as anesthesia_level rises from 0→1, the entropy of
@@ -407,6 +464,8 @@ def run_all():
     test_mt_diagnostics()
     test_low_rank_polarity()
     test_nearest_neighbor_coupling()
+    test_gwtb_bottleneck()
+    test_gwtb_cache_parity()
     test_anesthesia_collapse()
     test_protofilament_scaling()
     test_overfit_single_batch()

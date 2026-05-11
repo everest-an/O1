@@ -19,6 +19,7 @@ from .embedding import MTLNNEmbedding
 from .mt_attention import MicrotubuleAttention
 from .mt_lnn_layer import MTLNNLayer
 from .global_coherence import GlobalCoherenceLayer
+from .gwtb import GWTBLayer
 from .utils import init_weights, init_mt_params
 
 
@@ -28,9 +29,10 @@ LayerCache = Tuple[Optional[KVCache], Optional[torch.Tensor]]            # (kv, 
 
 
 class ModelCacheStruct:
-    """Container for the full per-layer cache + the coherence layer's KV cache."""
+    """Full inference cache for incremental decoding."""
     def __init__(self):
         self.layers: List[LayerCache] = []
+        self.gwtb_kv: Optional[KVCache] = None
         self.coherence_kv: Optional[KVCache] = None
 
 
@@ -91,6 +93,11 @@ class MTLNNModel(nn.Module):
             block.attn = MicrotubuleAttention(config, rope=self.embedding.rope)
             self.blocks.append(block)
 
+        # Global Workspace Theory Bottleneck (capacity-limited broadcast) —
+        # runs once at the end of the stack, after all microtubule blocks.
+        self.gwtb = GWTBLayer(config)
+
+        # Orch-OR collapse layer (complementary to GWTB)
         self.coherence = GlobalCoherenceLayer(config)
         self.final_norm = nn.LayerNorm(config.d_model)
 
@@ -154,6 +161,14 @@ class MTLNNModel(nn.Module):
             )
             if use_cache:
                 new_cache.layers.append(new_layer_cache)
+
+        # GWTB: capacity-limited workspace bottleneck + broadcast
+        gwtb_past = cache.gwtb_kv if cache is not None else None
+        x, gwtb_new_kv = self.gwtb(
+            x, past_kv=gwtb_past, position_offset=position_offset, use_cache=use_cache
+        )
+        if use_cache:
+            new_cache.gwtb_kv = gwtb_new_kv
 
         coh_past = cache.coherence_kv if cache is not None else None
         x, coh_new_kv = self.coherence(
@@ -235,6 +250,8 @@ class MTLNNModel(nn.Module):
         diag["coherence_scale"] = self.coherence.coherence_scale.item()
         diag["collapse_threshold"] = self.coherence.collapse_threshold.item()
         diag["collapse_gate_last"] = self.coherence.last_gate.item()
+        diag["gwtb_broadcast_gate"] = self.gwtb.broadcast_gate.item()
+        diag["gwtb_d_gw"] = float(self.gwtb.d_gw)
         return diag
 
     def get_mt_histograms(self) -> Dict[str, torch.Tensor]:

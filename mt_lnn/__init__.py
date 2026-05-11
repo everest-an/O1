@@ -4,6 +4,7 @@ from .anesthesia import AnesthesiaController, anesthetize
 from .mt_lnn_layer import MTLNNLayer, ProtofilamentLTC, LateralCoupling, MAPGate, MultiScaleResonance
 from .mt_attention import MicrotubuleAttention
 from .global_coherence import GlobalCoherenceLayer
+from .gwtb import GWTBLayer
 from .embedding import MTLNNEmbedding, RotaryEmbedding
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "MultiScaleResonance",
     "MicrotubuleAttention",
     "GlobalCoherenceLayer",
+    "GWTBLayer",
     "MTLNNEmbedding",
     "RotaryEmbedding",
 ]

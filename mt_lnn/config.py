@@ -49,7 +49,15 @@ class MTLNNConfig:
     n_time_scales: int = 5
     resonance_freqs: Optional[Tuple[float, ...]] = None
 
-    # Global coherence
+    # Global Workspace Theory Bottleneck (compress → workspace SA → broadcast)
+    # Workspace dim d_gw = d_model // gwtb_compression_ratio.
+    # gwtb_broadcast_init is the initial value of the gated residual scalar;
+    # small so the layer starts as near-identity and ramps up during training.
+    gwtb_compression_ratio: int = 8
+    gwtb_n_heads: int = 4
+    gwtb_broadcast_init: float = 0.01
+
+    # Global coherence (Orch-OR collapse, complementary to GWTB)
     coherence_sparsity: float = 0.1  # keep top 10% of attention scores
     coherence_heads: int = 4
 
