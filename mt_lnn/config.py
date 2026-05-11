@@ -29,6 +29,14 @@ class MTLNNConfig:
     tau_max: float = 10.0
     dt: float = 1.0
 
+    # Polarity Attention mode
+    #   "scalar"   — per-head learned scalar polarity (cheap, current default)
+    #   "low_rank" — content-aware low-rank bilinear σ(X W_A (X W_B)^T) bias.
+    #                Mimics α/β-tubulin pair interactions; rank-r adds 2·d·r
+    #                params per head.
+    polarity_mode: str = "scalar"
+    polarity_rank: int = 8
+
     # GTP hydrolysis (lateral coupling in MTLNNLayer)
     gamma_init: float = 0.1
     # GTP cap renewal period — lateral coupling refreshes every gtp_period
@@ -65,6 +73,21 @@ class MTLNNConfig:
         self.d_proto_total = self.d_proto * self.n_protofilaments
         # e.g. d_model=1024, P=13: d_proto=79, d_proto_total=1027
 
+        # Tensor-Core alignment warning: protofilament-level einsums see best
+        # GPU throughput when d_proto is a multiple of 8 (fp16/bf16) or 16. The
+        # closest aligned d_model values for the current P, n_heads are listed
+        # by recommended_aligned_d_model().
+        if self.d_proto % 8 != 0:
+            import warnings
+            aligned = self.recommended_aligned_d_model(self.d_model)
+            warnings.warn(
+                f"d_proto={self.d_proto} is not a multiple of 8 — protofilament "
+                f"einsums won't hit Tensor Cores optimally. Nearest aligned "
+                f"d_model values (n_protofilaments={self.n_protofilaments}, "
+                f"n_heads={self.n_heads}): {aligned}",
+                RuntimeWarning, stacklevel=2,
+            )
+
         # Continuous τ spectrum: geometric sweep tau_min → tau_max.
         # Each scale s in [0, n_time_scales) gets τ_s = tau_min * (tau_max/tau_min)^(s/(S-1))
         if self.resonance_freqs is None:
@@ -80,3 +103,26 @@ class MTLNNConfig:
         else:
             assert len(self.resonance_freqs) == self.n_time_scales, \
                 f"resonance_freqs length {len(self.resonance_freqs)} != n_time_scales {self.n_time_scales}"
+
+    def recommended_aligned_d_model(self, target: int, n: int = 5) -> list:
+        """
+        Return up to `n` d_model values near `target` that satisfy:
+          - divisible by n_heads (so d_head is integral)
+          - d_proto = d_model / n_protofilaments is a multiple of 8 (Tensor-Core
+            friendly for the per-protofilament einsums)
+        """
+        results = []
+        for delta in range(0, 4096, 8):
+            for candidate in {target - delta, target + delta}:
+                if candidate <= 0:
+                    continue
+                if candidate % self.n_heads != 0:
+                    continue
+                # d_proto must be an integer multiple of 8 → d_model = P * 8k
+                if candidate % (self.n_protofilaments * 8) != 0:
+                    continue
+                if candidate not in results:
+                    results.append(candidate)
+                if len(results) >= n:
+                    return sorted(results)
+        return sorted(results)

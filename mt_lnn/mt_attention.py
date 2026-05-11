@@ -63,6 +63,21 @@ class MicrotubuleAttention(nn.Module):
         # MT parameters (per Q-head)
         self.polarity_direction = nn.Parameter(torch.zeros(config.n_heads))
 
+        # Optional low-rank bilinear polarity bias.
+        # bias = σ((x W_A) (x W_B)^T) — a content-aware, T×T mask that
+        # generalises across sequence lengths (no fixed T parameter). Models
+        # α/β-tubulin dimer pair interactions.
+        self.polarity_mode = config.polarity_mode
+        if config.polarity_mode == "low_rank":
+            r = config.polarity_rank
+            self.pol_W_A = nn.Linear(config.d_model, r, bias=False)
+            self.pol_W_B = nn.Linear(config.d_model, r, bias=False)
+            # Per-head mixing weight in [0, 1]: learns how much of the bilinear
+            # mask to apply, vs. the scalar polarity bias. Init so bilinear is
+            # initially disabled (sigmoid(-3) ≈ 0.05) — model can rely on the
+            # scalar bias first.
+            self.pol_bilinear_gate = nn.Parameter(torch.full((config.n_heads,), -3.0))
+
         # gtp_gamma stored in raw space; γ = softplus(gtp_gamma) > 0.
         # **ALiBi-style multi-scale init**: heads span a geometric sequence so
         # different heads see different effective receptive fields — some focus
@@ -106,48 +121,68 @@ class MicrotubuleAttention(nn.Module):
 
     def _build_attn_bias(
         self,
+        x_q: torch.Tensor,                    # (B, T_q, d_model) — new tokens only
+        x_kv: Optional[torch.Tensor],         # (B, T_k, d_model) or None (use x_q)
         q_start: int,
-        q_len: int,
         k_len: int,
-        pad_mask: Optional[torch.Tensor],     # (B, T_k) bool, True = valid
+        pad_mask: Optional[torch.Tensor],
         dtype: torch.dtype,
     ) -> torch.Tensor:
         """
-        Returns float bias of shape (B?, n_heads, T_q, T_k) suitable for SDPA.
+        Combined SDPA-compatible attention bias:
 
-        bias[h,i,j] = polarity[h] * (j-i)/L  -  γ[h] * (i-j)    when j ≤ i
-                    = -inf                                       when j > i (causal)
-                    = -inf                                       when key j is padding
+          bias[h,i,j] = polarity[h] * (j-i)/L                           (scalar polarity)
+                     + α_h * σ((x_q W_A)(x_kv W_B)^T)                   (low-rank bilinear, if enabled)
+                     - γ[h] * (i-j)                                     (GTP log-decay)
+                     +∞-mask-out for j > i (causal) or pad.
 
-        Uses precomputed _delta and _causal buffers — only slicing, no fresh
-        tensor allocation per forward.
+        Note: low-rank mode is *content-aware* — depends on x. With KV caching
+        we'd need the full (cached + new) x sequence to compute it. For now
+        the bilinear bias is computed only over the *new* tokens × new tokens
+        block; old positions get scalar polarity only. This is exact when
+        prefilling and a mild approximation during incremental decode.
         """
+        B, T_q, _ = x_q.shape
         H = self.n_heads
         L = float(self.max_seq_len)
 
-        # Slice precomputed distance/causal — zero allocation
-        delta  = self._delta[q_start: q_start + q_len, :k_len]        # (T_q, T_k)
-        causal = self._causal[q_start: q_start + q_len, :k_len]       # (T_q, T_k) bool
+        # Precomputed distance / causal slices
+        delta  = self._delta[q_start: q_start + T_q, :k_len]          # (T_q, T_k)
+        causal = self._causal[q_start: q_start + T_q, :k_len]         # (T_q, T_k) bool
 
-        # Polarity bias: polarity[h] * (j-i)/L = -polarity[h] * delta/L
+        # Scalar polarity bias
         pol = self.polarity_direction.clamp(-1.0, 1.0)                # (H,)
-        polarity_bias = -pol.view(H, 1, 1) * (delta / L).unsqueeze(0) # (H, T_q, T_k)
+        polarity_bias = -pol.view(H, 1, 1) * (delta / L).unsqueeze(0) # (H,T_q,T_k)
 
-        # GTP log-bias: -γ[h] * max(delta, 0)
+        # GTP log-bias
         gamma = F.softplus(self.gtp_gamma).clamp(min=1e-6)            # (H,)
         gtp_log_bias = -gamma.view(H, 1, 1) * delta.clamp(min=0.0).unsqueeze(0)
 
-        bias = (polarity_bias + gtp_log_bias).to(dtype=dtype)         # (H, T_q, T_k)
+        bias = (polarity_bias + gtp_log_bias).to(dtype=dtype)         # (H,T_q,T_k)
+        bias = bias.unsqueeze(0).expand(B, -1, -1, -1).clone()        # (B,H,T_q,T_k)
+
+        # Low-rank content-aware polarity bias (opt-in)
+        if self.polarity_mode == "low_rank":
+            xq_A = self.pol_W_A(x_q)                                  # (B,T_q,r)
+            xq_B = self.pol_W_B(x_q)                                  # (B,T_q,r)
+            # Bilinear: M_qq[b,i,j] = σ(xq_A[b,i] · xq_B[b,j])
+            M_qq = torch.sigmoid(xq_A @ xq_B.transpose(-2, -1))       # (B,T_q,T_q)
+
+            # Place M_qq into the rightmost T_q×T_q sub-block of the (T_q,T_k)
+            # bias matrix — corresponds to attention among the new tokens only.
+            full = torch.zeros(B, T_q, k_len, device=x_q.device, dtype=dtype)
+            full[:, :, k_len - T_q:] = M_qq.to(dtype)
+            gate = torch.sigmoid(self.pol_bilinear_gate).view(1, H, 1, 1)  # (1,H,1,1)
+            bias = bias + gate * full.unsqueeze(1)                    # broadcast over H
 
         # Causal: invalid positions get -inf
         neg_inf = torch.finfo(dtype).min
-        bias = bias.masked_fill((~causal).unsqueeze(0).expand(H, -1, -1), neg_inf)
+        invalid = (~causal).unsqueeze(0).unsqueeze(0)                 # (1,1,T_q,T_k)
+        bias = bias.masked_fill(invalid, neg_inf)
 
         if pad_mask is not None:
-            B = pad_mask.shape[0]
-            bias = bias.unsqueeze(0).expand(B, -1, -1, -1).clone()    # (B, H, T_q, T_k)
-            invalid = (~pad_mask)[:, None, None, :].expand(B, H, q_len, k_len)
-            bias = bias.masked_fill(invalid, neg_inf)
+            invalid_pad = (~pad_mask)[:, None, None, :]
+            bias = bias.masked_fill(invalid_pad, neg_inf)
 
         return bias
 
@@ -192,7 +227,8 @@ class MicrotubuleAttention(nn.Module):
 
         # Build combined attention bias (zero new arange allocations)
         attn_bias = self._build_attn_bias(
-            q_start=position_offset, q_len=T_new, k_len=T_total,
+            x_q=x, x_kv=None,
+            q_start=position_offset, k_len=T_total,
             pad_mask=pad_mask, dtype=Q.dtype,
         )
 

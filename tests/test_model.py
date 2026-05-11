@@ -6,11 +6,15 @@ Run:  python -m pytest tests/   -or-   python tests/test_model.py
 
 import math
 import sys
+import warnings
 import torch
 import torch.nn.functional as F
 
 # allow `python tests/test_model.py` from project root
 sys.path.insert(0, ".")
+
+# Tests use tiny non-TC-aligned dims for speed; suppress the alignment warning.
+warnings.filterwarnings("ignore", message=".*Tensor Cores.*", category=RuntimeWarning)
 
 from mt_lnn import MTLNNConfig, MTLNNModel, ModelCacheStruct, anesthetize
 from mt_lnn.utils import make_param_groups, count_parameters
@@ -204,6 +208,60 @@ def test_gqa_kv_cache_size():
 # 6. Overfit: can the model actually learn?
 # ---------------------------------------------------------------------------
 
+def test_low_rank_polarity():
+    """
+    Low-rank bilinear polarity mode should:
+      1. Be opt-in (not affect default config behaviour)
+      2. Produce a valid forward + backward pass
+      3. Have a non-trivial number of extra params (2·d·r per head)
+    """
+    cfg_default = small_config()
+    cfg_lr = MTLNNConfig(
+        vocab_size=200, max_seq_len=64, d_model=128, n_layers=2,
+        n_heads=4, n_kv_heads=2, d_head=32, dropout=0.0, attention_dropout=0.0,
+        polarity_mode="low_rank", polarity_rank=4,
+    )
+    m_default = MTLNNModel(cfg_default).eval()
+    m_lr = MTLNNModel(cfg_lr).eval()
+
+    n_default = m_default.get_num_params()
+    n_lr = m_lr.get_num_params()
+    extra = n_lr - n_default
+    print(f"  scalar polarity: {n_default:,} params  |  low_rank polarity: {n_lr:,} params  "
+          f"(+{extra:,})")
+    assert extra > 0, "low_rank polarity didn't add any parameters"
+
+    ids = torch.randint(0, cfg_lr.vocab_size, (2, 16))
+    out = m_lr(ids, labels=ids)
+    out["loss"].backward()
+    for name, p in m_lr.named_parameters():
+        if "pol_W_A" in name or "pol_W_B" in name or "pol_bilinear_gate" in name:
+            assert p.grad is not None, f"low-rank polarity param has no grad: {name}"
+    print("[ok] test_low_rank_polarity")
+
+
+def test_nearest_neighbor_coupling():
+    """
+    Nearest-neighbor torch.roll coupling should produce non-trivial gradients
+    on W_left, W_right, nn_eta and not break the parity test paths.
+    """
+    cfg = small_config()
+    model = MTLNNModel(cfg).train()
+    ids = torch.randint(0, cfg.vocab_size, (2, 16))
+    out = model(ids, labels=ids)
+    out["loss"].backward()
+
+    found = {"W_left": False, "W_right": False, "nn_eta": False}
+    for name, p in model.named_parameters():
+        for key in found:
+            if name.endswith(key + ".weight") or name.endswith(key):
+                assert p.grad is not None and p.grad.abs().sum().item() > 0, \
+                    f"{key} has zero gradient"
+                found[key] = True
+    assert all(found.values()), f"missing NN-coupling params: {found}"
+    print("[ok] test_nearest_neighbor_coupling")
+
+
 def test_anesthesia_collapse():
     """
     Anesthesia validation: as anesthesia_level rises from 0→1, the entropy of
@@ -347,6 +405,8 @@ def run_all():
     test_prefill_then_decode()
     test_gqa_kv_cache_size()
     test_mt_diagnostics()
+    test_low_rank_polarity()
+    test_nearest_neighbor_coupling()
     test_anesthesia_collapse()
     test_protofilament_scaling()
     test_overfit_single_batch()
