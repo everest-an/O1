@@ -281,10 +281,13 @@ def train(args):
 def parse_args():
     p = argparse.ArgumentParser()
     # Model
-    p.add_argument("--d_model",       type=int,   default=1024)
+    # 125M defaults — Tensor-Core aligned:
+    # d_model=832 = 13 × 64 means d_proto=d_head=64 (8-multiple). n_heads=13
+    # makes each attention head correspond to one protofilament.
+    p.add_argument("--d_model",       type=int,   default=832)
     p.add_argument("--n_layers",      type=int,   default=12)
-    p.add_argument("--n_heads",       type=int,   default=16)
-    p.add_argument("--n_kv_heads",    type=int,   default=4)
+    p.add_argument("--n_heads",       type=int,   default=13)
+    p.add_argument("--n_kv_heads",    type=int,   default=1)
     # Start with 512; once converged, fine-tune at 2048+ — RoPE + MT bias
     # generalise well past the training length.
     p.add_argument("--seq_len",       type=int,   default=512)

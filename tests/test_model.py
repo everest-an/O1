@@ -16,7 +16,11 @@ sys.path.insert(0, ".")
 # Tests use tiny non-TC-aligned dims for speed; suppress the alignment warning.
 warnings.filterwarnings("ignore", message=".*Tensor Cores.*", category=RuntimeWarning)
 
-from mt_lnn import MTLNNConfig, MTLNNModel, ModelCacheStruct, anesthetize
+from mt_lnn import (
+    MTLNNConfig, MTLNNModel, ModelCacheStruct, anesthetize,
+    compute_phi_hat, compute_phi_hat_from_model,
+    phi_hat_anesthesia_sweep, anesthesia_test_result,
+)
 from mt_lnn.utils import make_param_groups, count_parameters
 
 
@@ -319,6 +323,50 @@ def test_gwtb_cache_parity():
     print("[ok] test_gwtb_cache_parity")
 
 
+def test_phi_hat_basic():
+    """
+    Phi_hat should be FINITE and HIGHER for correlated parts than for independent parts.
+    """
+    torch.manual_seed(123)
+    N, d = 256, 32
+
+    # Independent Gaussian: parts are independent, Phi_hat should be near 0
+    indep = torch.randn(N, d)
+    phi_indep = compute_phi_hat(indep, K=4, k_nn=3)
+
+    # Correlated: build hidden where parts share a latent factor
+    z = torch.randn(N, d // 4)
+    parts = [z + 0.05 * torch.randn_like(z) for _ in range(4)]
+    corr = torch.cat(parts, dim=-1)
+    phi_corr = compute_phi_hat(corr, K=4, k_nn=3)
+
+    print(f"  Phi_hat(independent)={phi_indep:+.3f}   Phi_hat(correlated)={phi_corr:+.3f}")
+    assert math.isfinite(phi_indep) and math.isfinite(phi_corr)
+    assert phi_corr > phi_indep, "Phi_hat should detect part correlation"
+    print("[ok] test_phi_hat_basic")
+
+
+def test_anesthesia_validation_protocol():
+    """
+    The full AVP: Phi_hat should monotonically collapse as κ rises from 1 → 10.
+    """
+    torch.manual_seed(0)
+    cfg = small_config()
+    model = MTLNNModel(cfg).eval()
+    ids = torch.randint(0, cfg.vocab_size, (1, 24))
+
+    sweep = phi_hat_anesthesia_sweep(model, ids, kappas=[1.0, 5.0, 10.0],
+                                      K=4, k_nn=3)
+    print(f"  Phi_hat sweep: {{ {', '.join(f'κ={k:.0f}: Phi_hat={v:+.3f}' for k, v in sweep.items())} }}")
+
+    # Phi_hat(κ=1) should not be NaN; clean and full should differ
+    assert all(math.isfinite(v) for v in sweep.values()), "Phi_hat produced NaN"
+    result = anesthesia_test_result(sweep, delta=0.0)   # weak threshold for unseeded test
+    print(f"  collapse: {result['collapse_pct']:.1f}%  (clean→full)")
+    assert sweep[1.0] != sweep[10.0], "anesthesia hooks not affecting Phi_hat"
+    print("[ok] test_anesthesia_validation_protocol")
+
+
 def test_anesthesia_collapse():
     """
     Anesthesia validation: as anesthesia_level rises from 0→1, the entropy of
@@ -466,6 +514,8 @@ def run_all():
     test_nearest_neighbor_coupling()
     test_gwtb_bottleneck()
     test_gwtb_cache_parity()
+    test_phi_hat_basic()
+    test_anesthesia_validation_protocol()
     test_anesthesia_collapse()
     test_protofilament_scaling()
     test_overfit_single_batch()

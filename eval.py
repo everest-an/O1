@@ -31,7 +31,10 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from mt_lnn import MTLNNConfig, MTLNNModel
+from mt_lnn import (
+    MTLNNConfig, MTLNNModel,
+    compute_phi_hat_from_model, phi_hat_anesthesia_sweep, anesthesia_test_result,
+)
 from mt_lnn.utils import load_checkpoint
 
 
@@ -241,6 +244,35 @@ def main(args):
             if args.dump_w_lat:
                 print(np.round(info["matrix"], 3))
 
+    # ---- Φ̂ + Anesthesia Validation Protocol ----
+    if args.phi_hat or args.anesthesia_test:
+        # Use a random or supplied prompt batch
+        N_samples = args.phi_batch
+        ids = torch.randint(0, config.vocab_size,
+                             (1, min(N_samples, config.max_seq_len)),
+                             device=device)
+
+        if args.phi_hat:
+            phi = compute_phi_hat_from_model(model, ids, K=args.phi_K, k_nn=args.phi_k_nn)
+            print(f"\n=== Φ̂ (information integration) ===")
+            print(f"  K={args.phi_K}, k_nn={args.phi_k_nn}, n_samples={ids.numel()}")
+            print(f"  Φ̂ = {phi:.4f}  (higher = more integrated)")
+
+        if args.anesthesia_test:
+            kappas = args.anesthesia_kappas or [1.0, 2.0, 5.0, 10.0]
+            sweep = phi_hat_anesthesia_sweep(model, ids, kappas=kappas,
+                                              K=args.phi_K, k_nn=args.phi_k_nn)
+            result = anesthesia_test_result(sweep, delta=args.anesthesia_delta)
+            print(f"\n=== Anesthesia Validation Protocol ===")
+            print(f"  Φ̂ vs anesthesia level:")
+            for kappa, phi in sweep.items():
+                print(f"    κ = {kappa:>4.1f}   Φ̂ = {phi:+.4f}")
+            print(f"  Φ̂(κ=1)  = {result['phi_clean']:+.4f}")
+            print(f"  Φ̂(κ=max)= {result['phi_full']:+.4f}")
+            print(f"  collapse = {result['collapse_pct']:.1f}% "
+                  f"(threshold {args.anesthesia_delta*100:.0f}%)")
+            print(f"  TEST {'✓ PASSED' if result['passed'] else '✗ FAILED'}")
+
     # ---- Perplexity + collapse stats + long-context PPL ----
     if args.eval_data:
         # Tokeniser must match the one used at training time.
@@ -303,4 +335,16 @@ if __name__ == "__main__":
     p.add_argument("--heatmap_dir", default=None,
                                        help="If set, render W_lat heatmaps to this directory")
     p.add_argument("--dump_w_lat",  action="store_true", help="Print each W_lat matrix to stdout")
+    # Φ̂ and AVP
+    p.add_argument("--phi_hat",     action="store_true",
+                                       help="Compute Φ̂ information-integration proxy")
+    p.add_argument("--anesthesia_test", action="store_true",
+                                       help="Run the Anesthesia Validation Protocol")
+    p.add_argument("--phi_K",       type=int, default=4)
+    p.add_argument("--phi_k_nn",    type=int, default=3)
+    p.add_argument("--phi_batch",   type=int, default=512,
+                                       help="N samples (token positions) for Φ̂ estimation")
+    p.add_argument("--anesthesia_kappas", type=float, nargs="*", default=None)
+    p.add_argument("--anesthesia_delta",  type=float, default=0.7,
+                                       help="Minimum collapse fraction to pass AVP")
     main(p.parse_args())

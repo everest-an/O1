@@ -1,6 +1,13 @@
 from .config import MTLNNConfig
 from .model import MTLNNModel, MTLNNBlock, ModelCacheStruct
 from .anesthesia import AnesthesiaController, anesthetize
+from .phi_hat import (
+    compute_phi_hat,
+    compute_phi_hat_from_model,
+    phi_hat_anesthesia_sweep,
+    anesthesia_test_result,
+    knn_entropy_chebyshev,
+)
 from .mt_lnn_layer import MTLNNLayer, ProtofilamentLTC, LateralCoupling, MAPGate, MultiScaleResonance
 from .mt_attention import MicrotubuleAttention
 from .global_coherence import GlobalCoherenceLayer
@@ -14,6 +21,11 @@ __all__ = [
     "ModelCacheStruct",
     "AnesthesiaController",
     "anesthetize",
+    "compute_phi_hat",
+    "compute_phi_hat_from_model",
+    "phi_hat_anesthesia_sweep",
+    "anesthesia_test_result",
+    "knn_entropy_chebyshev",
     "MTLNNLayer",
     "ProtofilamentLTC",
     "LateralCoupling",

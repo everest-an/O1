@@ -11,10 +11,13 @@ class MTLNNConfig:
     pad_token_id: int = 0
 
     # Model dimensions
-    d_model: int = 1024
+    # d_model = 832 = 13 × 64 → d_proto = 64 (Tensor-Core aligned).
+    # n_heads = 13 chosen so each head naturally corresponds to one
+    # protofilament, with d_head = 832 / 13 = 64.
+    d_model: int = 832
     n_layers: int = 12               # 12 layers → ~125M params
-    n_heads: int = 16
-    n_kv_heads: int = 4              # GQA: 4 KV heads, 16 Q heads → 4× KV-cache savings
+    n_heads: int = 13
+    n_kv_heads: int = 1              # GQA: 1 KV head, 13 Q heads → 13× KV-cache savings
     d_head: int = 64                 # d_model // n_heads
 
     # Microtubule protofilament settings
