@@ -207,23 +207,46 @@ def phi_hat_anesthesia_sweep(
 
 def anesthesia_test_result(sweep: Dict[float, float], delta: float = 0.7) -> dict:
     """
-    Pass criterion from the paper: Φ̂(κ_max) / Φ̂(κ=1) ≤ 1 - δ (default δ=0.7).
+    Anesthesia test from the paper: Φ̂(κ_max) / Φ̂(κ=1) ≤ 1 - δ (default δ=0.7).
+
+    Robust to negative Φ̂ baselines (the Kraskov estimator can be negatively
+    biased for high d / small N, so absolute values are noisy but the
+    *direction and magnitude of change with κ* remain meaningful).
+
+    Returns:
+      phi_clean, phi_full           — Φ̂ at min and max κ
+      abs_change                    — phi_full - phi_clean (negative = collapse)
+      signed_relative_change        — abs_change / max(|phi_clean|, 1e-6)
+      collapse_pct                  — max(0, -signed_relative_change) × 100;
+                                       ≥0% even when Φ̂ rises (only counts collapse)
+      monotone_decrease             — True iff Φ̂ is non-increasing across κ
+      passed                        — collapse_pct ≥ δ·100 AND monotone_decrease
     """
     kappa_min = min(sweep)
     kappa_max = max(sweep)
     phi_clean = sweep[kappa_min]
     phi_full = sweep[kappa_max]
-    if phi_clean <= 0:
-        ratio = float("nan")
-        passed = False
-    else:
-        ratio = phi_full / phi_clean
-        passed = ratio <= (1.0 - delta)
+    abs_change = phi_full - phi_clean
+    signed_rel = abs_change / max(abs(phi_clean), 1e-6)
+    # Collapse percentage: only counts decrease in Φ̂, not increase.
+    # If Φ̂ rises under anesthesia (unexpected — model integration *grows*
+    # when damped) collapse_pct stays 0%.
+    collapse_pct = max(0.0, -signed_rel) * 100.0
+
+    sorted_kappas = sorted(sweep.keys())
+    monotone_decrease = all(
+        sweep[sorted_kappas[i]] >= sweep[sorted_kappas[i + 1]]
+        for i in range(len(sorted_kappas) - 1)
+    )
+
+    passed = (collapse_pct >= delta * 100.0) and monotone_decrease
     return {
         "phi_clean": phi_clean,
         "phi_full": phi_full,
-        "ratio": ratio,
-        "collapse_pct": (1.0 - ratio) * 100.0 if phi_clean > 0 else float("nan"),
+        "abs_change": abs_change,
+        "signed_relative_change": signed_rel,
+        "collapse_pct": collapse_pct,
+        "monotone_decrease": monotone_decrease,
         "delta_threshold": delta,
         "passed": passed,
     }

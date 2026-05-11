@@ -267,10 +267,13 @@ def main(args):
             print(f"  Φ̂ vs anesthesia level:")
             for kappa, phi in sweep.items():
                 print(f"    κ = {kappa:>4.1f}   Φ̂ = {phi:+.4f}")
-            print(f"  Φ̂(κ=1)  = {result['phi_clean']:+.4f}")
-            print(f"  Φ̂(κ=max)= {result['phi_full']:+.4f}")
-            print(f"  collapse = {result['collapse_pct']:.1f}% "
+            print(f"  Φ̂(κ=1)         = {result['phi_clean']:+.4f}")
+            print(f"  Φ̂(κ=max)       = {result['phi_full']:+.4f}")
+            print(f"  abs change      = {result['abs_change']:+.4f}")
+            print(f"  signed rel chg  = {result['signed_relative_change']*100:+.1f}%")
+            print(f"  collapse        = {result['collapse_pct']:.1f}% "
                   f"(threshold {args.anesthesia_delta*100:.0f}%)")
+            print(f"  monotone decr.  = {result['monotone_decrease']}")
             print(f"  TEST {'✓ PASSED' if result['passed'] else '✗ FAILED'}")
 
     # ---- Perplexity + collapse stats + long-context PPL ----

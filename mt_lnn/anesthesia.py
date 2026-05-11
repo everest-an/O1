@@ -7,18 +7,24 @@ state that supports consciousness. In rats with reinforced microtubules,
 anesthesia onset is delayed by ~69 s — a real, measured macroscopic effect.
 
 We replicate that mechanism *in silico* by exposing a single scalar
-`anesthesia_level` ∈ [0, 1]. When raised, three biologically-grounded effects
-fire simultaneously across every MT-LNN block:
+`anesthesia_level` ∈ [0, 1]. When raised, two biologically-grounded effects
+fire simultaneously via forward hooks:
 
-  1. **Microtubule destabilisation** — protofilament hidden states are damped
-     by (1 - anesthesia_level), simulating tubulin-anesthetic binding that
-     disrupts the lattice.
-  2. **GTP cap collapse** — γ is multiplied by (1 + 9·anesthesia_level), so
-     the GTP-cap gate becomes near-binary local; long-range microtubule
-     mixing dies.
-  3. **Global coherence collapse** — the coherence layer's gate output is
-     multiplied by (1 - anesthesia_level), simulating the loss of the
-     macroscopic entangled state Wiest reports under anesthesia.
+  1. **Microtubule destabilisation** — both the MT-DL output and the
+     recurrent hidden state h_prev are damped by (1 - anesthesia_level),
+     simulating tubulin-anesthetic binding that suppresses protofilament
+     dynamics and prevents state accumulation.
+
+  2. **Global coherence collapse** — the GlobalCoherenceLayer's broadcast
+     deviation (x_out - x_in) is damped by the same factor, simulating the
+     loss of large-scale entangled state that Wiest et al. (2025) report
+     under anesthesia.
+
+These two effects act as complementary proxies: (1) kills the local MT
+dynamics and the LNN recurrent memory, (2) kills the global broadcast so
+the workspace cannot propagate information across the sequence. Together they
+reproduce the Φ̂ collapse observed in biological anesthesia without requiring
+in-place parameter modification (which would be unsafe under torch.compile).
 
 This is *not* a normal layer — it is a runtime hook activated by
 `AnesthesiaContext` for validation runs. The model trains and infers with
