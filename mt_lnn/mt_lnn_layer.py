@@ -213,6 +213,12 @@ class MTLNNLayer(nn.Module):
 
         # GTP hydrolysis on lateral signal — temporal decay
         self.gtp_gamma = nn.Parameter(torch.tensor(config.gamma_init))
+        # GTP cap renewal period: lateral coupling refreshes every `gtp_period`
+        # tokens so long contexts don't silently kill mixing. Stored as a buffer
+        # (non-learned, fixed at config time).
+        self.register_buffer("gtp_period",
+                             torch.tensor(float(config.gtp_period)),
+                             persistent=False)
 
         self.dropout = nn.Dropout(config.dropout)
 
@@ -237,10 +243,18 @@ class MTLNNLayer(nn.Module):
         # 3. ALL protofilaments × scales in one shot
         h_stack = self.resonance(x_split, h_prev_t)                    # (B,T,P,D)
 
-        # 4. Lateral coupling with GTP temporal gate (absolute position)
+        # 4. Lateral coupling with GTP temporal gate.
+        # Originally used absolute position t_abs which makes exp(-γ·t_abs) → 0
+        # for large contexts (e.g. t=4096) and lateral coupling silently
+        # disappears. We now use a **periodic local clock**: t mod period.
+        # This mimics microtubule GTP-cap renewal: a fresh cap forms every
+        # `gtp_period` steps, lateral coupling refreshes, and the model never
+        # loses lateral mixing in long sequences.
+        period = self.gtp_period
         t_idx = torch.arange(position_offset, position_offset + T,
                              device=x.device, dtype=x.dtype)
-        gtp_scale = torch.exp(-self.gtp_gamma.clamp(min=1e-4) * t_idx) # (T,)
+        t_local = t_idx % period                                       # (T,)
+        gtp_scale = torch.exp(-self.gtp_gamma.clamp(min=1e-4) * t_local)
         gtp_scale = gtp_scale.view(1, T, 1, 1)
         h_lateral = self.lateral(h_stack)                              # (B,T,P,D)
         h_coupled = h_stack + gtp_scale * (h_lateral - h_stack)

@@ -62,13 +62,43 @@ class MicrotubuleAttention(nn.Module):
 
         # MT parameters (per Q-head)
         self.polarity_direction = nn.Parameter(torch.zeros(config.n_heads))
-        # gtp_gamma stored in raw space; γ = softplus(gtp_gamma) ensures positivity
-        # softplus⁻¹(γ_init) = log(exp(γ_init) - 1) ≈ log(γ_init) for small γ_init
-        gamma_raw_init = math.log(math.expm1(max(config.gamma_init, 1e-4)))
-        self.gtp_gamma = nn.Parameter(torch.full((config.n_heads,), gamma_raw_init))
+
+        # gtp_gamma stored in raw space; γ = softplus(gtp_gamma) > 0.
+        # **ALiBi-style multi-scale init**: heads span a geometric sequence so
+        # different heads see different effective receptive fields — some focus
+        # locally (large γ), others span far context (small γ).
+        # Geometric ratio chosen so head 0 has γ ≈ gamma_init * 8 (strongly local)
+        # and head (H-1) has γ ≈ gamma_init / 8 (effectively global).
+        gamma_targets = self._build_alibi_gamma(config.n_heads, config.gamma_init)
+        raw_init = torch.log(torch.expm1(gamma_targets.clamp(min=1e-4)))
+        self.gtp_gamma = nn.Parameter(raw_init)
 
         self.rope = rope
         self.resid_dropout = nn.Dropout(config.dropout)
+
+        # ------------------------------------------------------------------
+        # Precomputed distance matrices (saved as buffers, not parameters).
+        # _delta[i, j]   = i - j           (positive for past keys)
+        # _causal[i, j]  = True            iff j ≤ i
+        # We slice these by [position_offset:position_offset+T_new, :T_total]
+        # in the forward path so no fresh arange / tensor allocations occur.
+        # ------------------------------------------------------------------
+        idx = torch.arange(config.max_seq_len)
+        delta = idx[:, None] - idx[None, :]                  # (L, L) signed int
+        self.register_buffer("_delta", delta.float(), persistent=False)
+        self.register_buffer("_causal", (delta >= 0), persistent=False)
+
+    @staticmethod
+    def _build_alibi_gamma(n_heads: int, base_gamma: float) -> torch.Tensor:
+        """
+        Geometric γ schedule: γ_h = base_gamma * 2^(slope_h), where slope_h
+        ranges from +3 (head 0 → very local) down to -3 (head H-1 → very global).
+        For n_heads = 16 this gives γ ∈ [base/8, base*8] — a 64× spread.
+        """
+        if n_heads == 1:
+            return torch.tensor([base_gamma])
+        slopes = torch.linspace(3.0, -3.0, n_heads)
+        return base_gamma * (2.0 ** slopes)
 
     # ------------------------------------------------------------------
     # Combined additive attention mask: causal + polarity + GTP + (padding)
@@ -76,10 +106,10 @@ class MicrotubuleAttention(nn.Module):
 
     def _build_attn_bias(
         self,
-        q_pos: torch.Tensor,                  # (T_q,)
-        k_pos: torch.Tensor,                  # (T_k,)
+        q_start: int,
+        q_len: int,
+        k_len: int,
         pad_mask: Optional[torch.Tensor],     # (B, T_k) bool, True = valid
-        device: torch.device,
         dtype: torch.dtype,
     ) -> torch.Tensor:
         """
@@ -88,40 +118,36 @@ class MicrotubuleAttention(nn.Module):
         bias[h,i,j] = polarity[h] * (j-i)/L  -  γ[h] * (i-j)    when j ≤ i
                     = -inf                                       when j > i (causal)
                     = -inf                                       when key j is padding
+
+        Uses precomputed _delta and _causal buffers — only slicing, no fresh
+        tensor allocation per forward.
         """
-        T_q = q_pos.shape[0]
-        T_k = k_pos.shape[0]
         H = self.n_heads
         L = float(self.max_seq_len)
 
-        # Absolute distance i - j (positive for past keys, negative for future)
-        i_abs = q_pos[:, None].float()                              # (T_q, 1)
-        j_abs = k_pos[None, :].float()                              # (1, T_k)
-        delta = i_abs - j_abs                                       # (T_q, T_k); ≥0 valid, <0 future
+        # Slice precomputed distance/causal — zero allocation
+        delta  = self._delta[q_start: q_start + q_len, :k_len]        # (T_q, T_k)
+        causal = self._causal[q_start: q_start + q_len, :k_len]       # (T_q, T_k) bool
 
-        # Polarity bias: polarity * (j-i)/L = -polarity * delta/L
-        pol = self.polarity_direction.clamp(-1.0, 1.0)              # (H,)
-        polarity_bias = -pol.view(H, 1, 1) * (delta / L).unsqueeze(0)  # (H, T_q, T_k)
+        # Polarity bias: polarity[h] * (j-i)/L = -polarity[h] * delta/L
+        pol = self.polarity_direction.clamp(-1.0, 1.0)                # (H,)
+        polarity_bias = -pol.view(H, 1, 1) * (delta / L).unsqueeze(0) # (H, T_q, T_k)
 
-        # GTP log-bias: -γ * (i - j)  on valid (j ≤ i) positions
-        gamma = F.softplus(self.gtp_gamma).clamp(min=1e-6)          # (H,)
-        gtp_log_bias = -gamma.view(H, 1, 1) * delta.clamp(min=0.0).unsqueeze(0)  # (H, T_q, T_k)
+        # GTP log-bias: -γ[h] * max(delta, 0)
+        gamma = F.softplus(self.gtp_gamma).clamp(min=1e-6)            # (H,)
+        gtp_log_bias = -gamma.view(H, 1, 1) * delta.clamp(min=0.0).unsqueeze(0)
 
-        bias = (polarity_bias + gtp_log_bias).to(dtype=dtype)        # (H, T_q, T_k)
+        bias = (polarity_bias + gtp_log_bias).to(dtype=dtype)         # (H, T_q, T_k)
 
-        # Causal mask: j > i (delta < 0) → -inf
-        causal_invalid = (delta < 0).unsqueeze(0)                    # (1, T_q, T_k)
+        # Causal: invalid positions get -inf
         neg_inf = torch.finfo(dtype).min
-        bias = bias.masked_fill(causal_invalid.expand(H, -1, -1), neg_inf)
+        bias = bias.masked_fill((~causal).unsqueeze(0).expand(H, -1, -1), neg_inf)
 
-        # Padding mask
         if pad_mask is not None:
-            # pad_mask: (B, T_k); broadcast to (B, 1, 1, T_k)
             B = pad_mask.shape[0]
-            bias = bias.unsqueeze(0).expand(B, -1, -1, -1).clone()   # (B, H, T_q, T_k)
-            invalid = (~pad_mask)[:, None, None, :].expand(B, H, T_q, T_k)
+            bias = bias.unsqueeze(0).expand(B, -1, -1, -1).clone()    # (B, H, T_q, T_k)
+            invalid = (~pad_mask)[:, None, None, :].expand(B, H, q_len, k_len)
             bias = bias.masked_fill(invalid, neg_inf)
-        # else bias stays (H, T_q, T_k); SDPA broadcasts over batch.
 
         return bias
 
@@ -164,11 +190,11 @@ class MicrotubuleAttention(nn.Module):
         K_rep = repeat_kv(K_total, self.n_rep)                        # (B,H_q,T_total,D)
         V_rep = repeat_kv(V_total, self.n_rep)
 
-        # Build combined attention bias
-        device = x.device
-        q_pos = torch.arange(position_offset, position_offset + T_new, device=device)
-        k_pos = torch.arange(0, T_total, device=device)
-        attn_bias = self._build_attn_bias(q_pos, k_pos, pad_mask, device, Q.dtype)
+        # Build combined attention bias (zero new arange allocations)
+        attn_bias = self._build_attn_bias(
+            q_start=position_offset, q_len=T_new, k_len=T_total,
+            pad_mask=pad_mask, dtype=Q.dtype,
+        )
 
         # Flash-Attention / memory-efficient SDPA
         out = F.scaled_dot_product_attention(

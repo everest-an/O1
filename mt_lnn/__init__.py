@@ -1,5 +1,6 @@
 from .config import MTLNNConfig
 from .model import MTLNNModel, MTLNNBlock, ModelCacheStruct
+from .anesthesia import AnesthesiaController, anesthetize
 from .mt_lnn_layer import MTLNNLayer, ProtofilamentLTC, LateralCoupling, MAPGate, MultiScaleResonance
 from .mt_attention import MicrotubuleAttention
 from .global_coherence import GlobalCoherenceLayer
@@ -10,6 +11,8 @@ __all__ = [
     "MTLNNModel",
     "MTLNNBlock",
     "ModelCacheStruct",
+    "AnesthesiaController",
+    "anesthetize",
     "MTLNNLayer",
     "ProtofilamentLTC",
     "LateralCoupling",

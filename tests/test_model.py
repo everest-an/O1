@@ -12,7 +12,7 @@ import torch.nn.functional as F
 # allow `python tests/test_model.py` from project root
 sys.path.insert(0, ".")
 
-from mt_lnn import MTLNNConfig, MTLNNModel, ModelCacheStruct
+from mt_lnn import MTLNNConfig, MTLNNModel, ModelCacheStruct, anesthetize
 from mt_lnn.utils import make_param_groups, count_parameters
 
 
@@ -204,6 +204,44 @@ def test_gqa_kv_cache_size():
 # 6. Overfit: can the model actually learn?
 # ---------------------------------------------------------------------------
 
+def test_anesthesia_collapse():
+    """
+    Anesthesia validation: as anesthesia_level rises from 0→1, the entropy of
+    the model's output distribution should INCREASE (the model becomes
+    less confident — its 'consciousness' is degrading) and the output should
+    diverge from the clean prediction.
+
+    This is the in-silico mirror of the 2025 Wiest/Hameroff anesthesia finding.
+    """
+    torch.manual_seed(0)
+    cfg = small_config()
+    model = MTLNNModel(cfg).eval()
+    ids = torch.randint(0, cfg.vocab_size, (1, 16))
+
+    def entropy_and_logits(level):
+        with anesthetize(model, level):
+            with torch.no_grad():
+                logits = model(ids)["logits"]                          # (1,T,V)
+        probs = torch.softmax(logits[:, -1, :], dim=-1)
+        ent = -(probs * probs.clamp(min=1e-9).log()).sum().item()
+        return ent, logits.detach()
+
+    ent_0, logits_0 = entropy_and_logits(0.0)
+    ent_5, logits_5 = entropy_and_logits(0.5)
+    ent_1, logits_1 = entropy_and_logits(1.0)
+
+    diff_5 = (logits_0 - logits_5).abs().max().item()
+    diff_1 = (logits_0 - logits_1).abs().max().item()
+
+    print(f"  entropy: clean={ent_0:.3f}  half={ent_5:.3f}  full={ent_1:.3f}")
+    print(f"  logit diff vs clean: half={diff_5:.4f}  full={diff_1:.4f}")
+    # Anesthesia must actually change the output (sanity)
+    assert diff_1 > diff_5 > 1e-5, "anesthesia hooks not firing"
+    # Full anesthesia should produce a different distribution from clean
+    assert diff_1 > 1e-3, f"full anesthesia barely affects output: {diff_1}"
+    print("[ok] test_anesthesia_collapse")
+
+
 def test_protofilament_scaling():
     """
     The vectorized MTLNNLayer should scale gracefully as P grows.
@@ -309,6 +347,7 @@ def run_all():
     test_prefill_then_decode()
     test_gqa_kv_cache_size()
     test_mt_diagnostics()
+    test_anesthesia_collapse()
     test_protofilament_scaling()
     test_overfit_single_batch()
     print("=" * 60)

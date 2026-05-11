@@ -285,12 +285,17 @@ def parse_args():
     p.add_argument("--n_layers",      type=int,   default=12)
     p.add_argument("--n_heads",       type=int,   default=16)
     p.add_argument("--n_kv_heads",    type=int,   default=4)
-    p.add_argument("--seq_len",       type=int,   default=1024)
+    # Start with 512; once converged, fine-tune at 2048+ — RoPE + MT bias
+    # generalise well past the training length.
+    p.add_argument("--seq_len",       type=int,   default=512)
     p.add_argument("--dropout",       type=float, default=0.1)
-    # Training
+    # Training — defaults chosen for a 125M model on a single A100/3090.
+    # Global batch = batch * grad_accum * #GPUs. With batch=8 and grad_accum=64
+    # we hit the recommended global batch of 512 (critical for stable τ
+    # learning on the LNN side).
     p.add_argument("--batch",         type=int,   default=8)
-    p.add_argument("--grad_accum",    type=int,   default=8)
-    p.add_argument("--lr",            type=float, default=3e-4)
+    p.add_argument("--grad_accum",    type=int,   default=64)
+    p.add_argument("--lr",            type=float, default=6e-4)
     p.add_argument("--grad_clip",     type=float, default=1.0)
     p.add_argument("--warmup_steps",  type=int,   default=2000)
     p.add_argument("--steps",         type=int,   default=50000)
