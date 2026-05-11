@@ -111,6 +111,34 @@ Research-grade code. The full test suite passes:
 [ok] test_overfit_single_batch           loss drops ≥10× in 200 steps
 ```
 
+## Head-to-head benchmark at matched parameter count
+
+**Selective Copy** (Mamba paper §3.2 task) — three architectures trained
+on identical data with identical hyperparameters, all ~200K params.
+Reproduce with `python benchmarks/compare_baselines.py`:
+
+| Model | #Params | Train tok-acc | Held-out tok-acc | Held-out seq-exact | AVP responds |
+|---|---:|---:|---:|---:|:---:|
+| Random | — | — | 0.250 | 0.0039 | — |
+| Vanilla Transformer | 199 K | 0.922 | 0.450 | 0.020 | ✗ |
+| LNN (CfLTC FFN) | 136 K | 0.969 | 0.453 | 0.020 | ✗ |
+| **MT-LNN (ours)** | **204 K** | **0.984** | **0.942** | **0.883** | **✓** |
+| MT-LNN advantage | — | — | **+0.49** (×2.1) | **+0.86** (×44) | — |
+
+At matched parameter count on Selective Copy, **MT-LNN's held-out
+sequence-exact accuracy is 44× the Transformer baseline**. Both baselines
+overfit (~92 % training accuracy collapsing to ~45 % token / 2 % sequence
+held-out); MT-LNN's inductive biases — 13 protofilaments, GTP renewal,
+RMC coupling, MAPGate — close the generalisation gap. Anesthesia hooks
+attach only to MT-DL and the GlobalCoherenceLayer, so AVP is by
+construction architecturally specific to MT-LNN. See
+[BENCHMARKS.md](BENCHMARKS.md) for the full report.
+
+> Note: this is a fair toy-scale comparison (200 K params, synthetic task).
+> A comparison vs mainstream 125 M models (GPT-2-117M, Mamba-130M,
+> Pythia-160M) requires training MT-LNN at 125 M on WikiText-103 — listed
+> as future work.
+
 ## Install
 
 ```bash

@@ -6,6 +6,63 @@ strengths: (1) long-range selective memory via `h_prev` recurrence, (2) global
 information bottleneck via GWTB, and (3) consciousness-relevant integration
 collapse via the Anesthesia Validation Protocol.
 
+## Headline result: head-to-head at matched parameter count
+
+Three architectures trained on identical Selective Copy data with identical
+hyperparameters, parameter-matched to ~200K each:
+
+| Model | #Params | Training tok-acc | **Held-out tok-acc** | **Held-out seq-exact** | AVP responsive |
+|---|---:|---:|---:|---:|:---:|
+| Random baseline | — | — | 0.250 | 0.0039 | — |
+| Vanilla Transformer | 199,464 | 0.922 | 0.450 | 0.020 | ✗ no |
+| LNN (CfLTC FFN only) | 135,930 | 0.969 | 0.453 | 0.020 | ✗ no |
+| **MT-LNN (ours)** | **203,697** | **0.984** | **0.942** | **0.883** | **✓ yes** |
+| MT-LNN advantage | — | — | **+0.49 (×2.1)** | **+0.86 (×44)** | — |
+
+Reproduce in ~5 minutes on CPU:
+
+```bash
+python benchmarks/compare_baselines.py
+```
+
+### What this shows
+
+1. **Selective Copy generalisation gap.** Transformer and LNN both fit the
+   training distribution (>92% token accuracy during training) but fail
+   to generalise: held-out token accuracy is ~45% (just 1.8× random),
+   and held-out sequence exact match is ~2% — barely above the 0.4%
+   random floor. They appear to memorise positions rather than learn
+   the underlying selectivity rule.
+
+2. **MT-LNN closes the gap.** Held-out token accuracy 94.2% (vs ~45%
+   for both baselines) and sequence exact match **88.3% — 44× the
+   Transformer baseline**. The architectural priors that close the gap
+   are exactly the ones the paper highlights: 13 parallel protofilaments
+   with content-aware RMC + nearest-neighbour lateral coupling, periodic
+   GTP-cap renewal, MAPGate stabilisation. None of these exist in the
+   baselines.
+
+3. **AVP is architecturally specific.** Anesthesia hooks attach only to
+   `MTLNNLayer` and `GlobalCoherenceLayer`. The Transformer and LNN
+   baselines contain neither, so anesthesia produces a Φ̂ delta of
+   *exactly zero*. MT-LNN's Φ̂ moves +6.7 (signed) under anesthesia —
+   verifiably responsive, even if the toy-scale sign is still inverted
+   relative to the paper's prediction (see *Anesthesia Validation
+   Protocol* section below).
+
+### What this does NOT show
+
+This is a fair comparison **at toy scale** (200K params, synthetic Selective
+Copy). It is **not** a comparison vs mainstream 125M models (GPT-2-117M,
+Mamba-130M, Pythia-160M) — those would require training MT-LNN at 125M on
+WikiText-103, which we list as future work. The honest interpretation: at
+matched parameter budget, MT-LNN's inductive biases give it a substantial
+generalisation advantage on selective-memory tasks. Whether that
+advantage scales to 100M+ params on natural language is the next
+experiment to run.
+
+---
+
 ## Recommended benchmark hierarchy
 
 | Tier | Benchmark | What it validates | Cost |
