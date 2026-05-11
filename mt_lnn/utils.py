@@ -41,10 +41,10 @@ def init_mt_params(model: nn.Module, config) -> None:
       - out_proj of MTLNNLayer scaled small (std=0.01) → block residual is small
     """
     for name, param in model.named_parameters():
-        if "log_tau" in name:
-            target = math.log(math.exp(config.tau_init - config.tau_min) - 1.0 + 1e-6)
-            nn.init.constant_(param, target)
-        elif name.endswith("polarity_direction"):
+        # log_tau lives in VectorizedMultiScaleResonance and is initialised
+        # PER-SCALE in the constructor (using config.resonance_freqs). We
+        # deliberately do NOT override it here so multi-scale variety survives.
+        if name.endswith("polarity_direction"):
             nn.init.uniform_(param, -0.05, 0.05)
         elif name.endswith("W_lat"):
             nn.init.eye_(param)

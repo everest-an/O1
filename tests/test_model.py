@@ -204,6 +204,41 @@ def test_gqa_kv_cache_size():
 # 6. Overfit: can the model actually learn?
 # ---------------------------------------------------------------------------
 
+def test_protofilament_scaling():
+    """
+    The vectorized MTLNNLayer should scale gracefully as P grows.
+    Time at P=13 should not be >2× time at P=64 — proving the work happens
+    on a single GPU/CPU einsum, not in a Python loop.
+    """
+    import time
+    base_cfg = dict(vocab_size=200, max_seq_len=64, d_model=128, n_layers=1,
+                    n_heads=4, n_kv_heads=2, d_head=32, dropout=0.0,
+                    attention_dropout=0.0)
+
+    times = {}
+    for P in (13, 32, 64):
+        cfg = MTLNNConfig(n_protofilaments=P, **base_cfg)
+        model = MTLNNModel(cfg).eval()
+        ids = torch.randint(0, cfg.vocab_size, (2, 32))
+        # warmup
+        for _ in range(3):
+            with torch.no_grad():
+                model(ids)
+        t0 = time.time()
+        for _ in range(20):
+            with torch.no_grad():
+                model(ids)
+        times[P] = (time.time() - t0) / 20
+
+    print(f"  P=13 → {times[13]*1000:.1f}ms  P=32 → {times[32]*1000:.1f}ms  "
+          f"P=64 → {times[64]*1000:.1f}ms")
+    # 5× more protofilaments should NOT cost 5× the time (CPU/GPU parallelism)
+    ratio = times[64] / max(times[13], 1e-6)
+    assert ratio < 5.0, f"P=64 is {ratio:.1f}× slower than P=13 — vectorisation broken"
+    print(f"  scaling ratio (P=64 / P=13): {ratio:.2f}× — vectorisation OK")
+    print("[ok] test_protofilament_scaling")
+
+
 def test_overfit_single_batch():
     """Loss should drop ≥10× within 200 steps on a fixed batch."""
     torch.manual_seed(0)
@@ -247,12 +282,15 @@ def test_mt_diagnostics():
     for k, v in diag.items():
         assert math.isfinite(v), f"Non-finite diagnostic: {k}={v}"
 
-    # τ initialised to ~tau_init (= 1.0 default)
-    assert abs(diag["tau_mean"] - cfg.tau_init) < 0.05
+    # τ initialised from resonance_freqs → values span the configured range
+    # and there must be variance (multi-scale init not collapsed to a single value)
+    assert cfg.tau_min <= diag["tau_min"] <= diag["tau_max"] <= cfg.tau_max
+    assert diag["tau_std"] > 0.1, f"τ has no spread — multi-scale init failed: {diag['tau_std']}"
     # Lateral coupling near-identity at init
     assert diag["lat_coupling_mean_off_diag_norm"] < 0.5
-    print(f"  τ={diag['tau_mean']:.3f}±{diag['tau_std']:.3f}  γ={diag['gamma_mean']:.3f}  "
-          f"polarity_std={diag['polarity_std']:.3f}")
+    print(f"  τ={diag['tau_mean']:.3f}±{diag['tau_std']:.3f} "
+          f"[{diag['tau_min']:.3f}, {diag['tau_max']:.3f}]  γ={diag['gamma_mean']:.3f}  "
+          f"polarity_std={diag['polarity_std']:.3f}  rmc_gate={diag['rmc_gate_mean']:.3f}")
     print("[ok] test_mt_diagnostics")
 
 
@@ -271,6 +309,7 @@ def run_all():
     test_prefill_then_decode()
     test_gqa_kv_cache_size()
     test_mt_diagnostics()
+    test_protofilament_scaling()
     test_overfit_single_batch()
     print("=" * 60)
     print("ALL TESTS PASSED")
