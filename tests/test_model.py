@@ -118,6 +118,41 @@ def test_kv_cache_parity():
     print("[ok] test_kv_cache_parity")
 
 
+def test_pscan_cache_parity_with_recurrence():
+    """
+    With pscan (use_lnn_recurrence=True) + properly threaded h_prev across
+    cached steps, full forward and single-step cached decoding should produce
+    IDENTICAL logits. This is the gold-standard test that proves the new
+    parallel-scan path correctly threads its recurrent state through the cache.
+    """
+    torch.manual_seed(7)
+    cfg = small_config()
+    model = MTLNNModel(cfg).eval()
+
+    T = 12
+    ids = torch.randint(0, cfg.vocab_size, (1, T))
+
+    # A. Full forward, real recurrence, no cache
+    with torch.no_grad():
+        full = model(ids, use_lnn_recurrence=True)["logits"]
+
+    # B. Step-by-step with cache (h_prev properly threaded)
+    cache = None
+    step_logits = []
+    with torch.no_grad():
+        for t in range(T):
+            out = model(ids[:, t:t+1], cache=cache, use_cache=True,
+                        use_lnn_recurrence=True)
+            cache = out["cache"]
+            step_logits.append(out["logits"][:, -1, :])
+    stacked = torch.stack(step_logits, dim=1)
+
+    diff = (full - stacked).abs().max().item()
+    print(f"  pscan + real-recurrence cache parity: {diff:.6e}")
+    assert diff < 1e-3, f"pscan cache parity FAILED: {diff}"
+    print("[ok] test_pscan_cache_parity_with_recurrence")
+
+
 def test_lnn_recurrence_active():
     """
     Sanity check: with use_lnn_recurrence=True, cached decode SHOULD differ
@@ -561,6 +596,7 @@ def run_all():
     test_shapes_and_loss()
     test_gradient_flow()
     test_kv_cache_parity()
+    test_pscan_cache_parity_with_recurrence()
     test_lnn_recurrence_active()
     test_prefill_then_decode()
     test_gqa_kv_cache_size()

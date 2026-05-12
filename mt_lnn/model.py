@@ -94,9 +94,16 @@ class MTLNNBlock(nn.Module):
         )
         x = x + attn_out
 
-        # LNN sub-layer (pre-norm)
-        lnn_out, h_last = self.lnn(self.lnn_norm(x), h_prev,
-                                    position_offset=position_offset)
+        # LNN sub-layer (pre-norm).
+        # use_lnn_recurrence drives BOTH (a) whether to pull h_prev from the
+        # cache or use zeros, and (b) whether the resonance bank runs a real
+        # parallel scan (True) or the legacy broadcast-h_prev parallel mode
+        # (False). The two together preserve cache parity in both modes.
+        lnn_out, h_last = self.lnn(
+            self.lnn_norm(x), h_prev,
+            position_offset=position_offset,
+            use_scan=use_lnn_recurrence,
+        )
         x = x + lnn_out
 
         # Per-block GWTB (pre-norm, gated residual already inside GWTBLayer)

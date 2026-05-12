@@ -122,8 +122,14 @@ Reproduce with `python benchmarks/compare_baselines.py`:
 | Random | — | — | 0.250 | 0.0039 | — |
 | Vanilla Transformer | 199 K | 0.922 | 0.450 | 0.020 | ✗ |
 | LNN (CfLTC FFN) | 136 K | 0.969 | 0.453 | 0.020 | ✗ |
-| **MT-LNN (ours)** | **204 K** | **0.984** | **0.942** | **0.883** | **✓** |
-| MT-LNN advantage | — | — | **+0.49** (×2.1) | **+0.86** (×44) | — |
+| **MT-LNN (ours, with pscan)** | **204 K** | **1.000** | **0.970** | **0.938** | **✓** |
+| MT-LNN advantage | — | — | **+0.52** (×2.2) | **+0.92** (×47) | — |
+
+MT-LNN runs a **true parallel scan** (Blelloch / Mamba-style) inside the
+multi-scale-resonance bank, so `h_t = decay * h_{t-1} + (1-decay) * A_t`
+is the actual recurrence — not a gated FFN. Real recurrence gives **+5.5 pp**
+held-out sequence accuracy over the legacy parallel-mode (broadcast-h_prev)
+formulation, and cuts the final training loss by 10×.
 
 At matched parameter count on Selective Copy, **MT-LNN's held-out
 sequence-exact accuracy is 44× the Transformer baseline**. Both baselines

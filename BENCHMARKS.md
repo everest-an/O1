@@ -9,15 +9,28 @@ collapse via the Anesthesia Validation Protocol.
 ## Headline result: head-to-head at matched parameter count
 
 Three architectures trained on identical Selective Copy data with identical
-hyperparameters, parameter-matched to ~200K each:
+hyperparameters, parameter-matched to ~200K each. MT-LNN now uses **real
+parallel-scan recurrence** (no longer "fake parallel mode"):
 
 | Model | #Params | Training tok-acc | **Held-out tok-acc** | **Held-out seq-exact** | AVP responsive |
 |---|---:|---:|---:|---:|:---:|
 | Random baseline | — | — | 0.250 | 0.0039 | — |
 | Vanilla Transformer | 199,464 | 0.922 | 0.450 | 0.020 | ✗ no |
 | LNN (CfLTC FFN only) | 135,930 | 0.969 | 0.453 | 0.020 | ✗ no |
-| **MT-LNN (ours)** | **203,697** | **0.984** | **0.942** | **0.883** | **✓ yes** |
-| MT-LNN advantage | — | — | **+0.49 (×2.1)** | **+0.86 (×44)** | — |
+| **MT-LNN (with pscan)** | **203,697** | **1.000** | **0.970** | **0.938** | **✓ yes** |
+| MT-LNN advantage | — | — | **+0.52 (×2.2)** | **+0.92 (×47)** | — |
+
+### Parallel scan ablation (proves real recurrence matters)
+
+| Variant | Final train loss | Held-out tok-acc | Held-out seq-exact |
+|---|---:|---:|---:|
+| MT-LNN with legacy parallel mode (h_prev broadcast across T) | 0.076 | 0.942 | 0.883 |
+| **MT-LNN with parallel scan (real h_t recurrence)** | **0.007** | **0.970** | **0.938** |
+| Improvement from real recurrence | **−10× loss** | +2.8 pp | **+5.5 pp** |
+
+The pscan path gives a strictly better model on every metric — confirming
+that the "temporal" claim is not just branding. Real recurrence does real
+work.
 
 Reproduce in ~5 minutes on CPU:
 

@@ -13,6 +13,7 @@ from .mt_attention import MicrotubuleAttention
 from .global_coherence import GlobalCoherenceLayer
 from .gwtb import GWTBLayer
 from .embedding import MTLNNEmbedding, RotaryEmbedding
+from .parallel_scan import pscan, pscan_sequential, pscan_constant_A
 
 __all__ = [
     "MTLNNConfig",
@@ -36,4 +37,7 @@ __all__ = [
     "GWTBLayer",
     "MTLNNEmbedding",
     "RotaryEmbedding",
+    "pscan",
+    "pscan_sequential",
+    "pscan_constant_A",
 ]

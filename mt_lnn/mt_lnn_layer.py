@@ -23,6 +23,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .config import MTLNNConfig
+from .parallel_scan import pscan_constant_A
 
 
 # ---------------------------------------------------------------------------
@@ -68,10 +69,26 @@ class VectorizedMultiScaleResonance(nn.Module):
         # blend_weights: (P, S) — softmax → uniform at init
         self.blend_weights = nn.Parameter(torch.zeros(P, S))
 
-    def forward(self, x: torch.Tensor, h_prev: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, h_prev: torch.Tensor,
+                use_scan: bool = True):
         """
-        x, h_prev: (B, T, P, D)
-        Returns:    (B, T, P, D)
+        x:        (B, T, P, D)
+        h_prev:   real-mode:    (B, P, S, D)  — per-scale recurrent state
+                  legacy mode:  (B, T, P, D)  — broadcast h_prev (no recurrence)
+                  None:         treated as zeros
+
+        Returns (out, h_last) where
+          out    : (B, T, P, D)  — blended across scales
+          h_last : (B, P, S, D)  — per-scale state at the last time step,
+                                   suitable for caching to the next forward.
+
+        When use_scan=True (default), runs a true parallel scan so that
+        h_t = decay * h_{t-1} + (1 - decay) * A_t. This makes the "liquid"
+        recurrence actually recurrent during training.
+
+        When use_scan=False, falls back to the legacy parallel mode where
+        h_prev is broadcast across all T positions. Kept only so ablations
+        can isolate the contribution of real recurrence.
         """
         B, T, P, D = x.shape
         S = self.S
@@ -85,16 +102,53 @@ class VectorizedMultiScaleResonance(nn.Module):
         tau = F.softplus(self.log_tau) + self.tau_min                 # (P,S)
         tau = tau.clamp(self.tau_min, self.tau_max)
         decay = torch.exp(-self.dt / tau)                              # (P,S)
-        decay = decay.view(1, 1, P, S, 1)                              # (1,1,P,S,1)
 
-        # 3. State update — all (P × S) banks at once
-        h_prev_e = h_prev.unsqueeze(3).expand(B, T, P, S, D)          # (B,T,P,S,D)
-        h_per_scale = h_prev_e * decay + A * (1.0 - decay)            # (B,T,P,S,D)
+        if not use_scan:
+            # Legacy parallel mode — h_prev: (B, T, P, D) broadcast across T
+            decay_full = decay.view(1, 1, P, S, 1)
+            if h_prev is None:
+                h_prev_e = torch.zeros(B, T, P, S, D, device=x.device, dtype=x.dtype)
+            else:
+                # Allow either (B,T,P,D) or (B,P,S,D) — broadcast to (B,T,P,S,D)
+                if h_prev.dim() == 4 and h_prev.shape == (B, T, P, D):
+                    h_prev_e = h_prev.unsqueeze(3).expand(B, T, P, S, D)
+                else:
+                    # Treat as (B, P, S, D) → broadcast across T
+                    h_prev_e = h_prev.unsqueeze(1).expand(B, T, P, S, D)
+            h_per_scale = h_prev_e * decay_full + A * (1.0 - decay_full)
+        else:
+            # Real recurrence via parallel scan.
+            # pscan expects (..., T, D); permute (B,T,P,S,D) -> (B,P,S,T,D)
+            A_perm = A.permute(0, 2, 3, 1, 4)                          # (B,P,S,T,D)
+            X = (1.0 - decay).view(1, P, S, 1, 1) * A_perm             # (B,P,S,T,D)
+            decay_bps = decay.unsqueeze(0).expand(B, P, S)             # (B,P,S)
 
-        # 4. Blend across scales with softmax(blend_weights)
+            # Initial state: h_prev is the per-scale state (B, P, S, D).
+            # If only (B, P, D) is passed, broadcast across scales (zero-init common case).
+            if h_prev is None:
+                h_init = torch.zeros(B, P, S, D, device=x.device, dtype=x.dtype)
+            elif h_prev.dim() == 4 and h_prev.shape == (B, P, S, D):
+                h_init = h_prev
+            elif h_prev.dim() == 3 and h_prev.shape == (B, P, D):
+                h_init = h_prev.unsqueeze(2).expand(B, P, S, D).contiguous()
+            else:
+                raise ValueError(
+                    f"h_prev shape {tuple(h_prev.shape)} not compatible; "
+                    f"expected (B,P,S,D)=({B},{P},{S},{D}) or (B,P,D)=({B},{P},{D})"
+                )
+
+            H = pscan_constant_A(decay_bps, X, h_init=h_init)          # (B,P,S,T,D)
+            h_per_scale = H.permute(0, 3, 1, 2, 4)                     # (B,T,P,S,D)
+
+        # 3. Blend across scales with softmax(blend_weights)
         w = F.softmax(self.blend_weights, dim=-1)                     # (P,S)
-        w = w.view(1, 1, P, S, 1)                                      # broadcast
-        return (h_per_scale * w).sum(dim=3)                           # (B,T,P,D)
+        w_b = w.view(1, 1, P, S, 1)                                    # (1,1,P,S,1)
+        out = (h_per_scale * w_b).sum(dim=3)                          # (B,T,P,D)
+
+        # Per-scale last state for caching — preserves the scan's internal
+        # state across calls without going through the blend.
+        h_last_per_scale = h_per_scale[:, -1, :, :, :]                # (B,P,S,D)
+        return out, h_last_per_scale
 
 
 # ---------------------------------------------------------------------------
@@ -261,9 +315,17 @@ class MTLNNLayer(nn.Module):
     def forward(
         self,
         x: torch.Tensor,                       # (B, T, d_model)
-        h_prev: torch.Tensor = None,           # (B, P, D) or None
+        h_prev: torch.Tensor = None,           # (B,P,S,D) [real] or (B,P,D) [legacy] or None
         position_offset: int = 0,
+        use_scan: bool = True,
     ):
+        """
+        use_scan=True (default): real recurrence via parallel scan.
+        use_scan=False         : legacy parallel mode (h_prev broadcast across T).
+
+        Returns (out, h_last_per_scale) where h_last_per_scale: (B, P, S, D) is
+        the per-scale recurrent state to cache for the next forward.
+        """
         B, T, _ = x.shape
         P, D = self.n_proto, self.d_proto
 
@@ -271,13 +333,11 @@ class MTLNNLayer(nn.Module):
         x_proto = self.in_proj(x)                                      # (B,T,d_proto_total)
         x_split = x_proto.view(B, T, P, D)                            # (B,T,P,D)
 
-        # 2. Initialise h_prev
-        if h_prev is None:
-            h_prev = torch.zeros(B, P, D, device=x.device, dtype=x.dtype)
-        h_prev_t = h_prev.unsqueeze(1).expand(B, T, P, D)             # (B,T,P,D)
-
-        # 3. ALL protofilaments × scales in one shot
-        h_stack = self.resonance(x_split, h_prev_t)                    # (B,T,P,D)
+        # 2. Run the resonance bank. It accepts h_prev in either form and
+        # returns the per-scale state we need to cache.
+        h_stack, h_last_per_scale = self.resonance(
+            x_split, h_prev, use_scan=use_scan
+        )                                                              # (B,T,P,D), (B,P,S,D)
 
         # 4. Lateral coupling with GTP temporal gate.
         # Originally used absolute position t_abs which makes exp(-γ·t_abs) → 0
@@ -303,8 +363,11 @@ class MTLNNLayer(nn.Module):
         h_flat = h_gated.reshape(B, T, P * D)
         out = self.dropout(self.out_proj(h_flat))                      # (B,T,d_model)
 
-        h_last = h_gated[:, -1, :, :]                                  # (B,P,D)
-        return out, h_last
+        # We cache the resonance bank's per-scale state (B, P, S, D) — that
+        # is the actual recurrent state of the LNN. Caching h_gated would
+        # break parity because lateral coupling and MAP gating are applied
+        # after the scan and are not part of the recurrence.
+        return out, h_last_per_scale
 
 
 # ---------------------------------------------------------------------------
