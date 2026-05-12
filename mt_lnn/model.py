@@ -9,7 +9,7 @@ A `LayerCache` per layer is the tuple (kv, h_prev). The full cache is a list
 of LayerCache, one per block. Pass `use_cache=True` to enable.
 """
 
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple, Dict, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -330,3 +330,66 @@ class MTLNNModel(nn.Module):
             "gamma": torch.cat(gammas).cpu().float(),
             "polarity": torch.cat(pols).cpu().float(),
         }
+
+    # ------------------------------------------------------------------
+    # Persistent memory (SQLite-backed cross-session h_prev storage)
+    # ------------------------------------------------------------------
+
+    def save_state(
+        self,
+        session_id: str,
+        cache: "ModelCacheStruct",
+        token_count: int = 0,
+        db_path: str = ".mt_lnn_state.db",
+    ) -> None:
+        """Persist the recurrent h_prev states in *cache* to SQLite.
+
+        Convenience wrapper around :class:`~mt_lnn.memory.SessionMemory`.
+        Call this after each inference turn to save conversational state.
+
+        Parameters
+        ----------
+        session_id:
+            Unique key for the conversation (e.g. ``"user_42_chat_7"``).
+        cache:
+            The ``ModelCacheStruct`` returned by a ``use_cache=True`` forward.
+        token_count:
+            Cumulative tokens in this session (for bookkeeping).
+        db_path:
+            Path to the SQLite database file.
+        """
+        from .memory import SessionMemory
+        with SessionMemory(db_path) as mem:
+            mem.save(session_id, cache, token_count=token_count)
+
+    def load_state(
+        self,
+        session_id: str,
+        db_path: str = ".mt_lnn_state.db",
+        device: Union[str, torch.device] = "cpu",
+    ) -> Optional["ModelCacheStruct"]:
+        """Load persisted h_prev states and return a seed ``ModelCacheStruct``.
+
+        Returns ``None`` if *session_id* is not found in the database.
+
+        Parameters
+        ----------
+        session_id:
+            Same key used in :meth:`save_state`.
+        db_path:
+            Path to the SQLite database file.
+        device:
+            Device to move tensors onto after loading.
+
+        Example
+        -------
+        >>> cache = model.load_state("my_session") or ModelCacheStruct()
+        >>> out = model(input_ids, cache=cache, use_cache=True)
+        >>> model.save_state("my_session", out["cache"], token_count=42)
+        """
+        from .memory import SessionMemory
+        with SessionMemory(db_path) as mem:
+            h_states = mem.load(session_id, device=device)
+            if h_states is None:
+                return None
+            return mem.restore_cache(h_states)

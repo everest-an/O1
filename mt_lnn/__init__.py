@@ -1,5 +1,6 @@
 from .config import MTLNNConfig
 from .model import MTLNNModel, MTLNNBlock, ModelCacheStruct
+from .memory import SessionMemory
 from .anesthesia import AnesthesiaController, anesthetize
 from .phi_hat import (
     compute_phi_hat,
@@ -8,12 +9,27 @@ from .phi_hat import (
     anesthesia_test_result,
     knn_entropy_chebyshev,
 )
+from .phi_spectral import (
+    gaussian_total_correlation,
+    effective_rank,
+    integration_ratio,
+    compute_phi_spectral_from_model,
+    phi_spectral_anesthesia_sweep,
+    anesthesia_test_result_spectral,
+    compare_phi_metrics,
+)
 from .mt_lnn_layer import MTLNNLayer, ProtofilamentLTC, LateralCoupling, MAPGate, MultiScaleResonance
 from .mt_attention import MicrotubuleAttention
 from .global_coherence import GlobalCoherenceLayer
 from .gwtb import GWTBLayer
 from .embedding import MTLNNEmbedding, RotaryEmbedding
 from .parallel_scan import pscan, pscan_sequential, pscan_constant_A
+from .llama_adapter import (
+    MTAdapterConfig,
+    MTResidualAdapter,
+    DecoderLayerWithMTAdapter,
+    attach_mt_adapters,
+)
 
 # Optional scientific-rigour modules (gracefully degrade if dependencies missing)
 try:
@@ -36,6 +52,7 @@ __all__ = [
     "MTLNNModel",
     "MTLNNBlock",
     "ModelCacheStruct",
+    "SessionMemory",
     "AnesthesiaController",
     "anesthetize",
     "compute_phi_hat",
@@ -43,6 +60,14 @@ __all__ = [
     "phi_hat_anesthesia_sweep",
     "anesthesia_test_result",
     "knn_entropy_chebyshev",
+    # Spectral / Gaussian integration metrics (Φ_G)
+    "gaussian_total_correlation",
+    "effective_rank",
+    "integration_ratio",
+    "compute_phi_spectral_from_model",
+    "phi_spectral_anesthesia_sweep",
+    "anesthesia_test_result_spectral",
+    "compare_phi_metrics",
     "MTLNNLayer",
     "ProtofilamentLTC",
     "LateralCoupling",
@@ -56,6 +81,10 @@ __all__ = [
     "pscan",
     "pscan_sequential",
     "pscan_constant_A",
+    "MTAdapterConfig",
+    "MTResidualAdapter",
+    "DecoderLayerWithMTAdapter",
+    "attach_mt_adapters",
     # Optional scientific-rigour modules
     "PYPHI_AVAILABLE",
     "PENNYLANE_AVAILABLE",

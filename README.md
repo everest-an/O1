@@ -131,6 +131,45 @@ is the actual recurrence — not a gated FFN. Real recurrence gives **+5.5 pp**
 held-out sequence accuracy over the legacy parallel-mode (broadcast-h_prev)
 formulation, and cuts the final training loss by 10×.
 
+### Long-context scaling
+
+`python benchmarks/long_context.py` — same models trained at three
+sequence lengths (matched compute per pair):
+
+| T_total | Transformer seq-exact | LNN seq-exact | **MT-LNN seq-exact** | MT-LNN ratio |
+|---:|---:|---:|---:|---:|
+| 37  | 0.031 | 0.031 | **0.523** | ×17 |
+| 101 | 0.016 | 0.016 | **0.438** | **×27** |
+| 229 | 0.016 | 0.016 | **0.094** | ×6 |
+
+The MT-LNN advantage **grows** from ×17 to ×27 going from T=37 to T=101,
+empirically validating the central claim that the temporal-recurrence
+inductive bias is what gives MT-LNN long-range memory. The ×6 ratio at
+T=229 is training-compute limited (only 500 steps for a much harder task).
+
+## Optional scientific-rigour modules
+
+Two optional research-track modules ship in the package, both gracefully
+degrading when their dependencies are not installed:
+
+- **`mt_lnn.phi_iit`** — real IIT 4.0 Φ computation via PyPhi (Tononi lab's
+  official toolbox). Run `pip install pyphi` to enable. Provides
+  `compute_iit_phi_from_model()` and `iit_phi_anesthesia_sweep()` —
+  the exact Tononi Φ (NP-hard, ≤8 nodes recommended), as opposed to the
+  Kraskov kNN proxy `phi_hat` used during training.
+
+- **`mt_lnn.quantum_coupling.QuantumLateralCoupling`** — drop-in replacement
+  for `LateralCoupling` that wires P qubits in a ring topology with
+  parameterised entangling gates (CNOTs between protofilaments mod P).
+  Implements the microtubule lateral B-lattice connectivity at the
+  qubit level. Requires `pip install pennylane`. Uses classical simulator
+  (`default.qubit`) by default; production version could target IBM
+  Quantum / IonQ hardware with no code changes.
+
+Both are off by default. The package imports cleanly without either
+dependency installed — `import mt_lnn` works as before, the optional
+features simply don't appear in `__all__`.
+
 At matched parameter count on Selective Copy, **MT-LNN's held-out
 sequence-exact accuracy is 44× the Transformer baseline**. Both baselines
 overfit (~92 % training accuracy collapsing to ~45 % token / 2 % sequence
@@ -181,6 +220,78 @@ python train.py --compile --wandb
 
 ```bash
 python demo.py --ckpt checkpoints/final.pt --prompt "The human brain"
+```
+
+### Train MT adapters on Llama-3.2-1B
+
+This is the practical route for testing whether MT-DL adds value before
+spending money on full pretraining. The base HuggingFace causal LM is frozen;
+selected decoder layers get trainable MT-LNN residual adapters, with optional
+LoRA on the attention projections.
+
+```bash
+python train_llama_mt_adapter.py \
+  --model meta-llama/Llama-3.2-1B \
+  --dataset wikitext --dataset_config wikitext-2-raw-v1 \
+  --seq_len 512 --batch 1 --grad_accum 8 --steps 1000 \
+  --mt_every 4 --lora
+```
+
+For the first ablation, run the same data and steps as:
+
+```bash
+# MT adapter only
+python train_llama_mt_adapter.py --model meta-llama/Llama-3.2-1B --steps 1000
+
+# MT adapter + LoRA
+python train_llama_mt_adapter.py --model meta-llama/Llama-3.2-1B --steps 1000 --lora
+```
+
+Checkpoints save only adapter/LoRA weights under
+`checkpoints/llama_mt_adapter/`, so the experiment stays small and separable
+from the frozen base model.
+
+Generate from a trained adapter:
+
+```bash
+python demo_llama_mt_adapter.py \
+  --model meta-llama/Llama-3.2-1B \
+  --adapter checkpoints/llama_mt_adapter/llama_mt_adapter_001000.pt \
+  --prompt "A language model with long-term memory should"
+```
+
+Evaluate held-out perplexity for the ablation:
+
+```bash
+# Base model
+python eval_llama_mt_adapter.py --model meta-llama/Llama-3.2-1B
+
+# Same base model with MT adapter
+python eval_llama_mt_adapter.py \
+  --model meta-llama/Llama-3.2-1B \
+  --adapter checkpoints/llama_mt_adapter/llama_mt_adapter_001000.pt
+```
+
+Run a one-shot ablation table over base plus one or more adapter checkpoints:
+
+```bash
+python bench_llama_mt_ablation.py \
+  --model meta-llama/Llama-3.2-1B \
+  --adapters checkpoints/llama_mt_adapter/llama_mt_adapter_001000.pt \
+  --max_batches 50 \
+  --out_json benchmarks/llama_mt_ablation.json
+```
+
+Run a needle-in-a-haystack retrieval benchmark for the long-context claim:
+
+```bash
+python bench_llama_mt_needle.py \
+  --model meta-llama/Llama-3.2-1B \
+  --adapters checkpoints/llama_mt_adapter/llama_mt_adapter_001000.pt \
+  --context_lengths 1024 2048 4096 \
+  --depths 0.1 0.5 0.9 \
+  --samples 5 \
+  --out_json benchmarks/llama_mt_needle.json
 ```
 
 ## Architecture

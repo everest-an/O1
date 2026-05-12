@@ -6,7 +6,15 @@
 
 ---
 
-## 1. System Architecture
+## 1. System Architecture & Biological Mapping / 系统架构与生物学映射
+
+To make this specification accessible, we map the mathematical components directly to their biological inspirations before presenting the compute graph:
+> *为了让这份技术规范更易读，我们在呈现计算图之前，先将晦涩的数学组件与它们所对应的生物学灵感进行直观的映射：*
+
+*   **Microtubule Dynamic Layer (MT-DL) ⇔ Microtubules (细胞微管)**: Replaces standard dense networks with 13 parallel liquid time-constant channels, representing the 13 protofilaments making up a biological microtubule. *(将标准的密集网络层替换为 13 个平行的液态时间常数通道，这完全对应了构成生物微管的 13 根原纤维。)*
+*   **Vectorized Multi-Scale Resonance ⇔ Brain wave frequencies (脑波频率动态)**: Each protofilament computes at 5 geometrical time-scales (from rapid spikes to slow drifts), capturing the temporal dynamics of biological neurons. *(每根原纤维在 5 个几何时间尺度上进行计算（从快速的脉冲到极慢的信息漂移），精准捕捉了生物神经元的时间动态特性。)*
+*   **Lateral Coupling ⇔ B-Lattice Bonds (横向耦合与B晶格键)**: Forces information to interact with neighboring protofilaments instead of being independent. *(强制信息在相邻的原纤维之间进行交互，对应了生物微管结构中的 B晶格键横向作用力。)*
+*   **GWP & Global Coherence ⇔ Global Workspace Theory (全局工作区与意识广播)**: Creates a central "bottleneck" that forces the model to synthesize disparate information streams into a single "conscious" broadcast vector. *(创建了一个集中的“瓶颈”，迫使模型将各个局部信息流合成为一个单一的、类似于“意识”的广播向量。)*
 
 ### 1.1 Forward pass (default config)
 
@@ -48,22 +56,22 @@ LayerCache = Tuple[
 ]
 ```
 
-### 1.3 Two forward modes
+### 1.3 Two forward modes / 两种前向传播模式
 
 | Mode | `use_lnn_recurrence` | Semantics |
 |---|---|---|
-| Training / prefill | `False` | h_prev = 0 for every token; parallel; bit-exact with cached decode |
-| Inference (default) | `True` | h_prev threaded across decode steps; true RNN memory |
+| Training / prefill (训练或预填充) | `False` | h_prev = 0 for every token; parallel; bit-exact with cached decode |
+| Inference (default) (流式推理) | `True` | h_prev threaded across decode steps; true RNN memory |
 
 ---
 
-## 2. Module Specifications
+## 2. Module Specifications / 核心模块规格
 
 ### 2.1 `MTLNNConfig` (`mt_lnn/config.py`)
 
-Complete parameter reference:
+Complete parameter reference: (完整参数配置表：)
 
-| Parameter | Type | Default | Description |
+| Parameter (参数) | Type (类型) | Default (默认值) | Description (描述) |
 |---|---|---|---|
 | `vocab_size` | int | 50257 | GPT-2 BPE vocab |
 | `max_seq_len` | int | 1024 | Max sequence length; RoPE table size |
@@ -279,7 +287,7 @@ with anesthetize(model, 0.7):
 
 **Hook effects at level ℓ:**
 
-| Module | Effect |
+| Module (模块) | Effect (效果) |
 |---|---|
 | `MTLNNLayer` (post-hook) | `out *= (1 - ℓ);  h_last *= (1 - ℓ)` |
 | `GlobalCoherenceLayer` (post-hook) | `x_out = x_in + (1 - ℓ)(x_out - x_in)` |
@@ -317,11 +325,11 @@ Returns `{phi_clean, phi_full, ratio, collapse_pct, delta_threshold, passed}`.
 
 ---
 
-## 3. Initialisation Protocol
+## 3. Initialisation Protocol / 初始化协议
 
 Applied by `init_mt_params(model, config)` after standard weight init:
 
-| Parameter | Init value | Reason |
+| Parameter (参数) | Init value (初始值) | Reason (原因) |
 |---|---|---|
 | `polarity_direction` | Uniform(−0.05, 0.05) | Near-symmetric at start |
 | `W_lat` | Identity + N(0, 0.005) | Protofilaments start independent |
@@ -336,9 +344,9 @@ Applied by `init_mt_params(model, config)` after standard weight init:
 
 ---
 
-## 4. Training Specification
+## 4. Training Specification / 训练规格
 
-### 4.1 Optimiser
+### 4.1 Optimiser / 优化器配置
 
 ```python
 # Four separate LR groups (make_param_groups in utils.py)
@@ -350,7 +358,7 @@ Applied by `init_mt_params(model, config)` after standard weight init:
 optimizer = AdamW(param_groups, betas=(0.9, 0.95), eps=1e-8)
 ```
 
-### 4.2 Schedule
+### 4.2 Schedule / 调度器
 
 ```
 Linear warmup: steps 0 → warmup_steps  (default 2000)
@@ -358,7 +366,7 @@ Cosine decay:  steps warmup → total    (min_lr = 0.1 × peak_lr)
 Peak LR:  6e-4 (125M)
 ```
 
-### 4.3 Default training config (125M)
+### 4.3 Default training config (125M) / 默认预训练流超参
 
 | Parameter | Value |
 |---|---|
@@ -374,7 +382,7 @@ Peak LR:  6e-4 (125M)
 | `dropout` | 0.1 |
 | `precision` | BF16 (A100) / FP16 (fallback) |
 
-### 4.4 Data format
+### 4.4 Data format / 喂表数据格式
 
 ```
 prepare_data.py → data/train.bin, data/validation.bin, data/meta.json
@@ -386,7 +394,7 @@ meta.json: {"vocab_size": int, ...}
 
 ---
 
-## 5. Evaluation Specification
+## 5. Evaluation Specification / 评测规格
 
 ### 5.1 Perplexity
 
@@ -447,7 +455,7 @@ Uses prefill + incremental decode with dual cache; streams output token by token
 
 ---
 
-## 6. Test Suite
+## 6. Test Suite / 单元测试套件
 
 ```bash
 python tests/test_model.py          # run all 17 tests
@@ -459,7 +467,7 @@ Tests require no GPU and complete in < 2 minutes on CPU. Small config used:
 
 ---
 
-## 7. File Map
+## 7. File Map / 代码文件树映射
 
 ```
 E:\O1\
@@ -492,9 +500,9 @@ E:\O1\
 
 ---
 
-## 8. Known Limitations
+## 8. Known Limitations / 已知架构限制
 
-| Limitation | Mitigation |
+| Limitation (限制点) | Mitigation (缓解/对策) |
 |---|---|
 | Low-rank bilinear polarity skips past tokens in cached decode (only new×new block computed) | Acceptable approximation; scalar polarity covers all positions |
 | Φ̂ estimator can be negative for small N or random-init models | Use n_batches=10; use trained model; interpret sign relative to baseline |
