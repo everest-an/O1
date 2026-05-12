@@ -15,6 +15,22 @@ from .gwtb import GWTBLayer
 from .embedding import MTLNNEmbedding, RotaryEmbedding
 from .parallel_scan import pscan, pscan_sequential, pscan_constant_A
 
+# Optional scientific-rigour modules (gracefully degrade if dependencies missing)
+try:
+    from .phi_iit import (
+        compute_iit_phi,
+        compute_iit_phi_from_model,
+        iit_phi_anesthesia_sweep,
+        PYPHI_AVAILABLE,
+    )
+except ImportError:
+    PYPHI_AVAILABLE = False
+
+try:
+    from .quantum_coupling import QuantumLateralCoupling, PENNYLANE_AVAILABLE
+except ImportError:
+    PENNYLANE_AVAILABLE = False
+
 __all__ = [
     "MTLNNConfig",
     "MTLNNModel",
@@ -40,4 +56,17 @@ __all__ = [
     "pscan",
     "pscan_sequential",
     "pscan_constant_A",
+    # Optional scientific-rigour modules
+    "PYPHI_AVAILABLE",
+    "PENNYLANE_AVAILABLE",
 ]
+
+# Add optional exports only if their dependencies are present
+if PYPHI_AVAILABLE:
+    __all__.extend([
+        "compute_iit_phi",
+        "compute_iit_phi_from_model",
+        "iit_phi_anesthesia_sweep",
+    ])
+if PENNYLANE_AVAILABLE:
+    __all__.append("QuantumLateralCoupling")

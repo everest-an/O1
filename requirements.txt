@@ -6,3 +6,10 @@ transformers>=4.40.0
 tqdm>=4.65.0
 einops>=0.7.0
 wandb>=0.16.0
+
+# --- Optional: scientific-rigour modules ---
+# Uncomment to enable real IIT-Φ computation (Tononi lab's PyPhi):
+# pyphi>=1.2.0
+#
+# Uncomment to enable quantum-circuit lateral coupling (PennyLane):
+# pennylane>=0.34.0
