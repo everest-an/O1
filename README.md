@@ -1,22 +1,22 @@
 <div align="center">
 
-# 🌏 MT-LNN - O1
-## Microtubule-inspired Liquid Neural Network
+# 🌏 MT-LNN
+## Microtubule-Inspired Liquid Neural Network
 
 ### Organic Brain-like LLM Architecture
-Anesthesia Controllable | Native Long Context | Dynamic State Memory
+**Anesthesia Controllable · Native Long Context · Dynamic State Memory**
 
 [![GitHub Stars](https://img.shields.io/github/stars/everest-an/O1?style=for-the-badge&color=1f75fe)](https://github.com/everest-an/O1)
-[![Research Paper](https://img.shields.io/badge/PDF-Official_Paper-red?style=for-the-badge)]()
+[![Paper](https://img.shields.io/badge/PDF-English_Paper-red?style=for-the-badge)](https://huggingface.co/EverestAn/MT-LNN/resolve/main/mt_lnn_arxiv.pdf)
+[![Chinese Paper](https://img.shields.io/badge/PDF-Chinese_Paper-red?style=for-the-badge)](https://huggingface.co/EverestAn/MT-LNN/resolve/main/mt_lnn_arxiv_zh.pdf)
+[![HuggingFace](https://img.shields.io/badge/HF-MT--LNN-yellow?style=for-the-badge)](https://huggingface.co/EverestAn/MT-LNN)
 [![MIT License](https://img.shields.io/badge/License-MIT-success?style=for-the-badge)](LICENSE)
-[![State-of-the-Art](https://img.shields.io/badge/SOTA-Long_Context-orange?style=for-the-badge)]()
 
-**Replace Transformer FFN | 13-channel Parallel CfLTC | Reduce Token Consumption**
+**Replace Transformer FFN · 13-Channel CfLTC · 89.5% Φ Collapse Under Anesthesia**
 
 </div>
 
 ---
-
 
 # MT-LNN
 
@@ -387,11 +387,6 @@ eval.py                PPL, long-context sliding-window PPL, collapse-gate stats
 demo.py                KV-cached autoregressive streaming generation
 tests/test_model.py    Full test suite (17 tests, all pass)
 ```
-
-[![GitHub stars](https://img.shields.io/github/stars/everest-an/O1?style=flat-square)](https://github.com/everest-an/O1)
-[![Paper](https://img.shields.io/badge/PDF-Arxiv-blue)](https://github.com/everest-an/O1/blob/main/mt_lnn_arxiv.pdf)
-[![License](https://img.shields.io/badge/License-MIT-green)](https://github.com/everest-an/O1/blob/main/LICENSE)
-[![Demo](https://img.shields.io/badge/Demo-Online-orange)](https://github.com/everest-an/O1/blob/main/demo.py)
 
 ## Design references
 
