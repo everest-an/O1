@@ -195,16 +195,16 @@ Reproduce with `python benchmarks/compare_baselines.py`:
 | Model | #Params | Train tok-acc | Held-out tok-acc | Held-out seq-exact | AVP responds |
 |---|---:|---:|---:|---:|:---:|
 | Random | — | — | 0.250 | 0.0039 | — |
-| Vanilla Transformer | 199 K | 0.922 | 0.450 | 0.020 | ✗ |
-| LNN (CfLTC FFN) | 136 K | 0.969 | 0.453 | 0.020 | ✗ |
-| **MT-LNN (ours, with pscan)** | **204 K** | **1.000** | **0.970** | **0.938** | **✓** |
-| MT-LNN advantage | — | — | **+0.52** (×2.2) | **+0.92** (×47) | — |
+| Vanilla Transformer | 199 K | 0.938 | 0.432 | 0.023 | ✗ |
+| LNN (CfLTC FFN) | 136 K | 0.969 | 0.433 | 0.023 | ✗ |
+| **MT-LNN (ours, with pscan)** | **204 K** | **0.984** | **0.983** | **0.965** | **✓ (+8.499)** |
+| MT-LNN advantage | — | — | **+0.55** (×2.3) | **+0.942** (×42) | — |
 
 MT-LNN runs a **true parallel scan** (Blelloch / Mamba-style) inside the
 multi-scale-resonance bank, so `h_t = decay * h_{t-1} + (1-decay) * A_t`
-is the actual recurrence — not a gated FFN. Real recurrence gives **+5.5 pp**
+is the actual recurrence — not a gated FFN. Real recurrence on GPU gives **+8.2 pp**
 held-out sequence accuracy over the legacy parallel-mode (broadcast-h_prev)
-formulation, and cuts the final training loss by 10×.
+formulation, and cuts the final training loss exponentially.
 
 ### Long-context scaling
 

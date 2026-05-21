@@ -15,10 +15,10 @@ parallel-scan recurrence** (no longer "fake parallel mode"):
 | Model | #Params | Training tok-acc | **Held-out tok-acc** | **Held-out seq-exact** | AVP responsive |
 |---|---:|---:|---:|---:|:---:|
 | Random baseline | — | — | 0.250 | 0.0039 | — |
-| Vanilla Transformer | 199,464 | 0.922 | 0.450 | 0.020 | ✗ no |
-| LNN (CfLTC FFN only) | 135,930 | 0.969 | 0.453 | 0.020 | ✗ no |
-| **MT-LNN (with pscan)** | **203,697** | **1.000** | **0.970** | **0.938** | **✓ yes** |
-| MT-LNN advantage | — | — | **+0.52 (×2.2)** | **+0.92 (×47)** | — |
+| Vanilla Transformer | 199,464 | 0.938 | 0.432 | 0.023 | ✗ no |
+| LNN (CfLTC FFN only) | 135,930 | 0.969 | 0.433 | 0.023 | ✗ no |
+| **MT-LNN (with pscan)** | **203,697** | **0.984** | **0.983** | **0.965** | **✓ (+8.499)** |
+| MT-LNN advantage | — | — | **+0.55 (×2.3)** | **+0.942 (×42)** | — |
 
 ### Long-context sweep: does the temporal advantage grow with T?
 
@@ -60,14 +60,14 @@ Reproduce with `python benchmarks/long_context.py` (~7 min on CPU).
 | Variant | Final train loss | Held-out tok-acc | Held-out seq-exact |
 |---|---:|---:|---:|
 | MT-LNN with legacy parallel mode (h_prev broadcast across T) | 0.076 | 0.942 | 0.883 |
-| **MT-LNN with parallel scan (real h_t recurrence)** | **0.007** | **0.970** | **0.938** |
-| Improvement from real recurrence | **−10× loss** | +2.8 pp | **+5.5 pp** |
+| **MT-LNN with parallel scan (real h_t recurrence)** | **0.059** | **0.983** | **0.965** |
+| Improvement from real recurrence | **~1.3× loss** | +4.1 pp | **+8.2 pp** |
 
 The pscan path gives a strictly better model on every metric — confirming
 that the "temporal" claim is not just branding. Real recurrence does real
 work.
 
-Reproduce in ~5 minutes on CPU:
+Reproduce in ~50 seconds on CUDA:
 
 ```bash
 python benchmarks/compare_baselines.py
@@ -82,8 +82,8 @@ python benchmarks/compare_baselines.py
    random floor. They appear to memorise positions rather than learn
    the underlying selectivity rule.
 
-2. **MT-LNN closes the gap.** Held-out token accuracy 94.2% (vs ~45%
-   for both baselines) and sequence exact match **88.3% — 44× the
+2. **MT-LNN closes the gap.** Held-out token accuracy 98.3% (vs ~43%
+   for both baselines) and sequence exact match **96.5% — 42× the
    Transformer baseline**. The architectural priors that close the gap
    are exactly the ones the paper highlights: 13 parallel protofilaments
    with content-aware RMC + nearest-neighbour lateral coupling, periodic
@@ -93,7 +93,7 @@ python benchmarks/compare_baselines.py
 3. **AVP is architecturally specific.** Anesthesia hooks attach only to
    `MTLNNLayer` and `GlobalCoherenceLayer`. The Transformer and LNN
    baselines contain neither, so anesthesia produces a Φ̂ delta of
-   *exactly zero*. MT-LNN's Φ̂ moves +6.7 (signed) under anesthesia —
+   *exactly zero*. MT-LNN's Φ̂ moves +8.499 (signed) under anesthesia —
    verifiably responsive, even if the toy-scale sign is still inverted
    relative to the paper's prediction (see *Anesthesia Validation
    Protocol* section below).
