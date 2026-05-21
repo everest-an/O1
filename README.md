@@ -27,10 +27,10 @@ Independent reproduction of the headline benchmarks on a plain CPU sandbox (2 th
 | Model | Held-out tok-acc | **Held-out seq-exact** | Wall-clock |
 |---|---:|---:|---:|
 | Random baseline | 0.250 | 0.004 | — |
-| Vanilla Transformer (199K) | 0.448 | 0.020 | 21 s |
-| LNN (CfLTC FFN only, 136K) | 0.450 | 0.020 | 17 s |
-| **MT-LNN (204K, full architecture)** | **0.916** | **0.816** | 85 s |
-| MT-LNN advantage | ×2.0 | **×41** | — |
+| Vanilla Transformer (199K) | 0.432 | 0.023 | 14 s |
+| LNN (CfLTC FFN only, 136K) | 0.433 | 0.023 | 15 s |
+| **MT-LNN (204K, full architecture)** | **0.983** | **0.965** | 50 s |
+| MT-LNN advantage | ×2.3 | **×42** | — |
 
 ### Long-context sweep — the temporal advantage *grows* with T
 
