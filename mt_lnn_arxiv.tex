@@ -439,7 +439,24 @@ $T_\text{total}$ & $T_\text{noise}$ & Transformer & LNN & MT-LNN & Advantage \\
 \textbf{Theoretical interpretation.} In the selective copy task the optimal solution tracks $K=5$ key tokens in recurrent state across $T_\text{noise}$ positions. Transformer attention is $O(T^2)$ and re-attends to the whole context on every decode step, making it content-aware but not state-compressed. MT-LNN's 13-protofilament LTC state accumulates the memorable tokens compactly in $h_\text{prev}\in\RR^{P\times D}$ via the Blelloch scan (Eq.\ \ref{eq:pscan}), achieving $O(1)$ state-size independent of $T_\text{noise}$. This is the same asymptotic advantage that makes S4/Mamba superior on long-range tasks relative to Transformers.
 
 \subsection{Needle-in-a-Haystack at 1.1B Scale}
-We evaluated MT-LNN as a residual adapter on the \texttt{TinyLlama-1.1B} architecture (fine-tuned for 500 steps). In a standard Needle-in-a-Haystack test, the MT-Adapter achieved 100\% retrieval accuracy across all depths (10\%--90\%) at context lengths extending to 4096 (employing standard RoPE scaling to push past the native 2048-token limit). Evaluation at 8192 tokens was bounded strictly by hardware memory limits (OOM on a 16GB T4 GPU testbed) rather than architectural capability constraints. Inference throughput degraded by only $\sim$10--15\% (e.g. from $\sim$580 Tok/s to $\sim$545 Tok/s at 4K context), demonstrating quantitatively that rigorous biological continuous-time dynamics can efficiently parallelize and integrate with standard causal LLMs without disrupting their zero-shot instruction following or long-range reasoning capabilities.
+We evaluated MT-LNN as a residual adapter on the \texttt{TinyLlama-1.1B} architecture (fine-tuned for 500 steps). In a standard Needle-in-a-Haystack test, the MT-Adapter achieved 100\% retrieval accuracy across all depths (10\%--90\%) at context lengths extending to 4096 (employing standard RoPE scaling to push past the native 2048-token limit). Evaluation at 8192 tokens was bounded strictly by hardware memory limits (OOM on a 16GB T4 GPU testbed) rather than architectural capability constraints (see Table~\ref{tab:needle}). Inference throughput degraded by only $\sim$10--15\% (e.g. from $\sim$580 Tok/s to $\sim$545 Tok/s at 4K context), demonstrating quantitatively that rigorous biological continuous-time dynamics can efficiently parallelize and integrate with standard causal LLMs without disrupting their zero-shot instruction following or long-range reasoning capabilities.
+
+\begin{table}[ht]
+\centering
+\caption{Needle-in-a-Haystack retrieval accuracy on TinyLlama-1.1B. Base and MT-Adapter demonstrate flawless retrieval up to 4096 context with only minor latency degradation for the MT-Adapter.}
+\label{tab:needle}
+\begin{tabular}{lccccc}
+\toprule
+Variant & Context & Depth & Exact Match & Contains & Tok/s \\
+\midrule
+Base TinyLlama & 1024--2048 & All & 1.000 & 1.000 & $\sim$800 \\
+MT-Adapter & 1024--2048 & All & \textbf{1.000} & \textbf{1.000} & $\sim$670 \\
+\midrule
+Base (RoPE scaled) & 4096 & All & 1.000 & 1.000 & $\sim$580 \\
+MT-Adapter (RoPE) & 4096 & All & \textbf{1.000} & \textbf{1.000} & $\sim$545 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Anesthesia validation}
 
