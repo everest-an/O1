@@ -59,7 +59,7 @@ class NeedleResult:
 
 
 def load_variant(args, adapter_path=None):
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.bfloat16 if device == "cuda" and torch.cuda.is_bf16_supported() else torch.float16
@@ -67,11 +67,16 @@ def load_variant(args, adapter_path=None):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    config = AutoConfig.from_pretrained(args.model)
+    if not hasattr(config, "rope_theta") or config.rope_theta is None:
+        config.rope_theta = 10000.0
+    config.rope_scaling = {"type": "linear", "rope_type": "linear", "factor": 4.0}
+
     model = AutoModelForCausalLM.from_pretrained(
         args.model,
+        config=config,
         torch_dtype=dtype if device == "cuda" else torch.float32,
         device_map=None,
-        rope_scaling={"type": "linear", "rope_type": "linear", "factor": 4.0}, # scale to 8k
     )
 
     if adapter_path is not None:
