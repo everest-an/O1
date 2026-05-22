@@ -2,7 +2,11 @@
 
 % ---- Packages ----
 \usepackage[margin=1in]{geometry}
-\usepackage{ctex} % Added for Chinese support
+\usepackage[UTF8,fontset=none]{ctex}
+\setCJKmainfont[Path=./, Extension=.otf, BoldFont=NotoSC-Bold, ItalicFont=NotoSC]{NotoSC}
+\setCJKsansfont[Path=./, Extension=.otf, BoldFont=NotoSC-Bold]{NotoSC}
+\setCJKmonofont[Path=./, Extension=.otf]{NotoSC}
+ % Added for Chinese support
 \usepackage{amsmath,amssymb,amsfonts,amsthm}
 \usepackage{graphicx}
 \usepackage{booktabs}
