@@ -67,12 +67,11 @@ def load_variant(args, adapter_path=None):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    import transformers
     model = AutoModelForCausalLM.from_pretrained(
         args.model,
         torch_dtype=dtype if device == "cuda" else torch.float32,
         device_map=None,
-        rope_scaling={"rope_type": "linear", "factor": 4.0} if int(transformers.__version__.split(".")[1]) >= 38 else {"type": "linear", "factor": 4.0}, # scale to 8k
+        rope_scaling={"type": "linear", "rope_type": "linear", "factor": 4.0}, # scale to 8k
     )
 
     if adapter_path is not None:
