@@ -170,7 +170,7 @@ def attach_mt_adapters(
             init_scale=init_scale,
             use_scan=use_scan,
         )
-        layers[idx] = DecoderLayerWithMTAdapter(layers[idx], MTResidualAdapter(adapter_cfg))
+        layers[idx] = DecoderLayerWithMTAdapter(layers[idx], MTResidualAdapter(adapter_cfg).to(getattr(model, 'dtype', torch.float32)))
     return chosen
 
 
