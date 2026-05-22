@@ -2,8 +2,8 @@
 Evaluate perplexity for a base HuggingFace LM with optional MT-LNN adapter.
 
 Examples:
-    python eval_llama_mt_adapter.py --model meta-llama/Llama-3.2-1B
-    python eval_llama_mt_adapter.py --model meta-llama/Llama-3.2-1B \
+    python eval_llama_mt_adapter.py --model TinyLlama/TinyLlama-1.1B-Chat-v1.0
+    python eval_llama_mt_adapter.py --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
         --adapter checkpoints/llama_mt_adapter/llama_mt_adapter_001000.pt
 """
 
@@ -74,7 +74,7 @@ def evaluate(args):
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--model", default="meta-llama/Llama-3.2-1B")
+    p.add_argument("--model", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0")
     p.add_argument("--adapter", default=None)
     p.add_argument("--dataset", default="wikitext")
     p.add_argument("--dataset_config", default="wikitext-2-raw-v1")

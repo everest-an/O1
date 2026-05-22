@@ -2,8 +2,8 @@
 Generate text with a base HuggingFace causal LM plus optional MT-LNN adapter.
 
 Examples:
-    python demo_llama_mt_adapter.py --model meta-llama/Llama-3.2-1B --prompt "Hello"
-    python demo_llama_mt_adapter.py --model meta-llama/Llama-3.2-1B \
+    python demo_llama_mt_adapter.py --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --prompt "Hello"
+    python demo_llama_mt_adapter.py --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
         --adapter checkpoints/llama_mt_adapter/llama_mt_adapter_001000.pt
 """
 
@@ -107,7 +107,7 @@ def generate(args):
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--model", default="meta-llama/Llama-3.2-1B")
+    p.add_argument("--model", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0")
     p.add_argument("--adapter", default=None)
     p.add_argument("--prompt", default="The most useful small language model is")
     p.add_argument("--max_tokens", type=int, default=120)

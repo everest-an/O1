@@ -3,7 +3,7 @@ Train MT-LNN residual adapters on top of a frozen HuggingFace causal LM.
 
 Example:
     python train_llama_mt_adapter.py \
-        --model meta-llama/Llama-3.2-1B \
+        --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
         --dataset wikitext --dataset_config wikitext-2-raw-v1 \
         --steps 200 --batch 1 --seq_len 512
 """
@@ -182,7 +182,7 @@ def train(args):
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--model", default="meta-llama/Llama-3.2-1B")
+    p.add_argument("--model", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0")
     p.add_argument("--dataset", default="wikitext")
     p.add_argument("--dataset_config", default="wikitext-2-raw-v1")
     p.add_argument("--split", default="train")

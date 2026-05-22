@@ -6,10 +6,10 @@ reports perplexity plus throughput. Adapter checkpoints may be MT-only or
 LoRA+MT; the loader reconstructs the layout from the saved training args.
 
 Examples:
-    python bench_llama_mt_ablation.py --model meta-llama/Llama-3.2-1B
+    python bench_llama_mt_ablation.py --model TinyLlama/TinyLlama-1.1B-Chat-v1.0
 
     python bench_llama_mt_ablation.py \
-        --model meta-llama/Llama-3.2-1B \
+        --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
         --adapters checkpoints/llama_mt_adapter/llama_mt_adapter_001000.pt
 """
 
@@ -201,7 +201,7 @@ def run(args):
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--model", default="meta-llama/Llama-3.2-1B")
+    p.add_argument("--model", default="TinyLlama/TinyLlama-1.1B-Chat-v1.0")
     p.add_argument("--adapters", nargs="*", default=[])
     p.add_argument("--skip_base", action="store_true")
     p.add_argument("--dataset", default="wikitext")
