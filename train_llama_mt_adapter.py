@@ -142,7 +142,8 @@ def train(args):
     )
 
     use_amp = device == "cuda"
-    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+    # GradScaler does not support BFloat16 in some PyTorch versions
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp) if dtype != torch.bfloat16 else None
     step = 0
     t0 = time.time()
     while step < args.steps:
@@ -153,16 +154,24 @@ def train(args):
             with torch.amp.autocast("cuda", enabled=use_amp, dtype=dtype):
                 out = model(**batch)
                 loss = out.loss / args.grad_accum
-            scaler.scale(loss).backward()
+                
+            if scaler is not None:
+                scaler.scale(loss).backward()
+            else:
+                loss.backward()
 
             if (step + 1) % args.grad_accum == 0:
-                scaler.unscale_(optimizer)
+                if scaler is not None:
+                    scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(
                     [p for p in model.parameters() if p.requires_grad],
                     args.grad_clip,
                 )
-                scaler.step(optimizer)
-                scaler.update()
+                if scaler is not None:
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
 
             step += 1
