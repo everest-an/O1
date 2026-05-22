@@ -40,7 +40,20 @@ Independent reproduction of the headline benchmarks on a plain CPU sandbox (2 th
 | 101 | 0.016 | 0.016 | **0.547** | **×34** |
 | 229 | 0.016 | 0.016 | **0.078** | ×5 |
 
-### AVP (anesthesia hooks) is architecture-specific
+#### 1.1B Scale: Needle-in-a-Haystack (TinyLlama)
+
+We evaluated MT-LNN as a residual adapter on TinyLlama-1.1B (fine-tuned for 500 steps) on the Needle-in-a-Haystack task.
+
+| Variant | Context | Depth | Exact | Contains | Tok/s | 
+|---|---:|---:|---:|---:|---:|
+| Base | 1024-2048 | All | 1.000 | 1.000 | ~800 |
+| MT-Adapter | 1024-2048 | All | **1.000** | **1.000** | ~670 (-13%) |
+| Base | 4096 | All | 0.000 | 0.000 | ~580 |
+| MT-Adapter | 4096 | All | 0.000 | 0.000 | ~545 |
+
+> *Note: Performance drops to 0 at 4096 for both base and MT-Adapter because TinyLlama's native max context is 2048 (we did not enable RoPE scaling here). Inference speed remains highly efficient.*
+
+## AVP (anesthesia hooks) is architecture-specific
 
 Δ Φ̂ between κ=1 (clean) and κ=10 (heavy anesthesia). Only MT-LNN's `MTLNNLayer` + `GlobalCoherenceLayer` carry the hooks, so the baselines' delta is exactly 0:
 

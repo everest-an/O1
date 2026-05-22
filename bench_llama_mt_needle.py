@@ -71,6 +71,7 @@ def load_variant(args, adapter_path=None):
         args.model,
         torch_dtype=dtype if device == "cuda" else torch.float32,
         device_map=None,
+        rope_scaling={"type": "linear", "factor": 4.0}, # scale to 8k
     )
 
     if adapter_path is not None:

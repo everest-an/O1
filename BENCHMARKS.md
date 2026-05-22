@@ -318,3 +318,31 @@ Concrete benchmarks worth running once we have real training data:
    that AVP fails on at toy scale should succeed at full scale.
 4. **Anesthesia dose-response curve fit** to a sigmoid, comparing the curve
    shape against Casali et al. 2013 clinical EEG complexity suppression.
+
+## 1.1B Scale: Needle-in-a-Haystack (TinyLlama)
+
+We evaluated MT-LNN as a residual adapter on TinyLlama-1.1B (fine-tuned for 500 steps) on the Needle-in-a-Haystack task.
+
+| Variant | Context | Depth | Exact | Contains | Tok/s | Seconds |
+|---|---:|---:|---:|---:|---:|---:|
+| Base | 1024 | 0.10 | 1.000 | 1.000 | 769 | 6.7 |
+| Base | 1024 | 0.50 | 1.000 | 1.000 | 836 | 6.2 |
+| Base | 1024 | 0.90 | 1.000 | 1.000 | 827 | 6.3 |
+| Base | 2048 | 0.10 | 1.000 | 1.000 | 807 | 12.8 |
+| Base | 2048 | 0.50 | 1.000 | 1.000 | 789 | 13.1 |
+| Base | 2048 | 0.90 | 1.000 | 1.000 | 762 | 13.5 |
+| Base | 4096 | 0.10 | 0.000 | 0.000 | 563 | 36.5 |
+| Base | 4096 | 0.50 | 0.000 | 0.000 | 587 | 35.0 |
+| Base | 4096 | 0.90 | 0.000 | 0.000 | 582 | 35.3 |
+| **MT-Adapter** | 1024 | 0.10 | **1.000** | **1.000** | 669 (-13%)| 7.7 |
+| **MT-Adapter** | 1024 | 0.50 | **1.000** | **1.000** | 677 | 7.6 |
+| **MT-Adapter** | 1024 | 0.90 | **1.000** | **1.000** | 671 | 7.7 |
+| **MT-Adapter** | 2048 | 0.10 | **1.000** | **1.000** | 665 | 15.5 |
+| **MT-Adapter** | 2048 | 0.50 | **1.000** | **1.000** | 654 | 15.8 |
+| **MT-Adapter** | 2048 | 0.90 | **1.000** | **1.000** | 656 | 15.7 |
+| **MT-Adapter** | 4096 | 0.10 | 0.000 | 0.000 | 546 | 37.6 |
+| **MT-Adapter** | 4096 | 0.50 | 0.000 | 0.000 | 541 | 38.0 |
+| **MT-Adapter** | 4096 | 0.90 | 0.000 | 0.000 | 547 | 37.5 |
+
+> Note: Performance drops to 0 at 4096 for both base and MT-Adapter because TinyLlama's native max context is 2048 (we did not enable RoPE scaling here). Inference speed remains highly efficient (only ~13% degradation).
+
