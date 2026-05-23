@@ -83,6 +83,11 @@ def _bytes_to_tensors(data: bytes) -> List[Optional[torch.Tensor]]:
 class SessionMemory:
     """Local-first SQLite store for MT-LNN recurrent states.
 
+    This class is intended for demos, notebooks, and single-node experiments.
+    It is not a high-QPS distributed state service. Production deployments
+    should put a queue, connection pool, or external store in front of the
+    recurrent-state persistence path.
+
     Parameters
     ----------
     db_path:

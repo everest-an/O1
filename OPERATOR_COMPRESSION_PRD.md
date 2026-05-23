@@ -121,8 +121,15 @@ Metrics:
 - Divergence between full replay, KV cache, and state-only recurrent mode.
 - Tau gate activity distribution once channel gating lands.
 - Sparse resonance selected-scale ratio and output divergence when enabled.
+- Structured JSONL metric events for benchmark modes, cache bytes, and gate diagnostics.
 
 ## Risks
+
+- SQLite-backed `SessionMemory` is a local demo/session mechanism, not a
+  distributed high-QPS state service. Production serving needs an explicit
+  storage adapter boundary plus connection management and backpressure.
+- `requirements.txt` keeps flexible lower bounds for experimentation;
+  `requirements.lock` should be used for reproducible benchmark reruns.
 
 - State-only mode is not exact long-context recall.
 - Direct heads require task-specific supervision.

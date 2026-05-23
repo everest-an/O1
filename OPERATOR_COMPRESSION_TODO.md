@@ -78,7 +78,17 @@ Acceptance:
 - [x] Generate a Markdown report with speed/cache/accuracy tables.
 - [x] Include caveats: state-only mode trades exact attention recall for compressed recurrent memory.
 - [x] Update command docs with reproducible commands.
+- [x] Add JSONL metric export for benchmark observability.
+- [x] Add a pinned environment lock file for reproducible smoke benchmark reruns.
+- [x] Document SQLite session persistence as local-first rather than high-QPS distributed storage.
 
 Acceptance:
 - One command regenerates the summary report.
 - Claims distinguish measured results from architectural hypotheses.
+
+## Production Hardening Backlog
+
+- [ ] Replace ad-hoc `print` logging in demos/training with project-level logging.
+- [ ] Add a service storage adapter for recurrent state if M1 is deployed behind concurrent API traffic.
+- [ ] Add CI jobs that install from `requirements.lock` and run smoke benchmarks on CPU.
+- [ ] Profile sparse resonance on GPU before considering a Triton/CUDA fused kernel.

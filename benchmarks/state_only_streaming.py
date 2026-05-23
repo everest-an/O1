@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 warnings.filterwarnings("ignore", message=".*Tensor Cores.*", category=RuntimeWarning)
 
 from mt_lnn import MTLNNConfig, MTLNNModel
+from mt_lnn.observability import JsonlMetricWriter
 from mt_lnn.streaming import streaming_inference
 
 
@@ -289,6 +290,8 @@ def parse_args():
     parser.add_argument("--sparse_resonance_kernel", action="store_true",
                         help="Compute only top-k tau scales selected by gate means")
     parser.add_argument("--sparse_resonance_top_k", type=int, default=1)
+    parser.add_argument("--metrics_jsonl", default=None,
+                        help="Optional JSONL path for per-mode structured metric events")
     return parser.parse_args()
 
 
@@ -316,39 +319,58 @@ def main():
     print(f"device={device} steps={args.steps} batch={args.batch}")
     print()
 
-    for steps in args.steps:
-        tokens = torch.randint(0, cfg.vocab_size, (args.batch, steps), device=device)
-        run = run_one(model, tokens, args, device)
-        results["runs"].append(run)
+    metrics = None
+    if args.metrics_jsonl:
+        metrics = JsonlMetricWriter(
+            args.metrics_jsonl,
+            static_fields={
+                "benchmark": "state_only_streaming",
+                "device": device,
+                "torch": torch.__version__,
+            },
+        )
 
-        print(f"steps={steps}")
-        gate_diag = run.get("scale_gate_diagnostics", {})
-        if gate_diag:
-            active = gate_diag.get("scale_gate_active_ratio")
-            nonzero = gate_diag.get("scale_gate_nonzero_ratio")
-            mean = gate_diag.get("scale_gate_mean")
-            print(
-                f"  scale gates: mean={mean:.3f} "
-                f"active_ratio={active:.3f} nonzero_ratio={nonzero:.3f}"
-            )
-            sparse_ratio = gate_diag.get("sparse_resonance_scale_ratio")
-            if sparse_ratio is not None:
-                print(f"  sparse resonance: selected_scale_ratio={sparse_ratio:.3f}")
-        for row in run["modes"]:
-            if row.get("skipped"):
-                print(f"  {row['mode']}: skipped ({row['reason']})")
-                continue
-            div = row.get("divergence_vs_full_sequence")
-            div_text = ""
-            if div is not None:
-                div_text = f" div.max={div['max_abs']:.3e} div.mean={div['mean_abs']:.3e}"
-            print(
-                f"  {row['mode']}: {row['elapsed_s']:.4f}s "
-                f"{row['tokens_per_s']:.1f} tok/s "
-                f"cache={row['final_cache_bytes']}B peak={row['peak_cache_bytes']}B"
-                f"{div_text}"
-            )
-        print()
+    try:
+        for steps in args.steps:
+            tokens = torch.randint(0, cfg.vocab_size, (args.batch, steps), device=device)
+            run = run_one(model, tokens, args, device)
+            results["runs"].append(run)
+
+            print(f"steps={steps}")
+            gate_diag = run.get("scale_gate_diagnostics", {})
+            if gate_diag:
+                active = gate_diag.get("scale_gate_active_ratio")
+                nonzero = gate_diag.get("scale_gate_nonzero_ratio")
+                mean = gate_diag.get("scale_gate_mean")
+                print(
+                    f"  scale gates: mean={mean:.3f} "
+                    f"active_ratio={active:.3f} nonzero_ratio={nonzero:.3f}"
+                )
+                sparse_ratio = gate_diag.get("sparse_resonance_scale_ratio")
+                if sparse_ratio is not None:
+                    print(f"  sparse resonance: selected_scale_ratio={sparse_ratio:.3f}")
+                if metrics is not None:
+                    metrics.write("scale_gate_diagnostics", {"steps": steps, **gate_diag})
+            for row in run["modes"]:
+                if metrics is not None:
+                    metrics.write("stream_mode", {"steps": steps, **row})
+                if row.get("skipped"):
+                    print(f"  {row['mode']}: skipped ({row['reason']})")
+                    continue
+                div = row.get("divergence_vs_full_sequence")
+                div_text = ""
+                if div is not None:
+                    div_text = f" div.max={div['max_abs']:.3e} div.mean={div['mean_abs']:.3e}"
+                print(
+                    f"  {row['mode']}: {row['elapsed_s']:.4f}s "
+                    f"{row['tokens_per_s']:.1f} tok/s "
+                    f"cache={row['final_cache_bytes']}B peak={row['peak_cache_bytes']}B"
+                    f"{div_text}"
+                )
+            print()
+    finally:
+        if metrics is not None:
+            metrics.close()
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:

@@ -1,6 +1,6 @@
 {
   "benchmark": "operator_compression_report",
-  "created_at": "2026-05-23T22:02:07.932102+00:00",
+  "created_at": "2026-05-23T22:09:07.933518+00:00",
   "device": "cpu",
   "torch": "2.5.1+cu121",
   "config": {
@@ -79,16 +79,16 @@
       "modes": [
         {
           "mode": "full_sequence_oracle",
-          "elapsed_s": 0.01981400000022404,
-          "tokens_per_s": 5046.936509481643,
+          "elapsed_s": 0.054797599999801605,
+          "tokens_per_s": 1824.897440770436,
           "final_cache_bytes": 0,
           "peak_cache_bytes": 0,
           "note": "single full causal forward; used as logit reference"
         },
         {
           "mode": "kv_cache_stream",
-          "elapsed_s": 0.3901789000001372,
-          "tokens_per_s": 256.29269035297614,
+          "elapsed_s": 0.47564539999984845,
+          "tokens_per_s": 210.2406540671514,
           "final_cache_bytes": 108992,
           "peak_cache_bytes": 108992,
           "divergence_vs_full_sequence": {
@@ -98,8 +98,8 @@
         },
         {
           "mode": "state_only_stream",
-          "elapsed_s": 0.38718559999961144,
-          "tokens_per_s": 258.2740680441121,
+          "elapsed_s": 0.44861189999983253,
+          "tokens_per_s": 222.90982472831712,
           "final_cache_bytes": 4160,
           "peak_cache_bytes": 4160,
           "divergence_vs_full_sequence": {
@@ -111,8 +111,8 @@
         },
         {
           "mode": "prefix_replay_stream",
-          "elapsed_s": 1.0846483999998782,
-          "tokens_per_s": 92.1957751470534,
+          "elapsed_s": 1.148809799999981,
+          "tokens_per_s": 87.0466111970856,
           "final_cache_bytes": 0,
           "peak_cache_bytes": 0,
           "divergence_vs_full_sequence": {
@@ -145,16 +145,16 @@
       "modes": [
         {
           "mode": "full_sequence_oracle",
-          "elapsed_s": 0.10232480000013311,
-          "tokens_per_s": 9772.801901383626,
+          "elapsed_s": 0.08500090000006821,
+          "tokens_per_s": 11764.581316188387,
           "final_cache_bytes": 0,
           "peak_cache_bytes": 0,
           "note": "single full causal forward; used as logit reference"
         },
         {
           "mode": "kv_cache_stream",
-          "elapsed_s": 4.285838199999944,
-          "tokens_per_s": 233.3265870839485,
+          "elapsed_s": 4.150752300000022,
+          "tokens_per_s": 240.92018210770965,
           "final_cache_bytes": 1044992,
           "peak_cache_bytes": 1044992,
           "divergence_vs_full_sequence": {
@@ -164,8 +164,8 @@
         },
         {
           "mode": "state_only_stream",
-          "elapsed_s": 4.0325864000001275,
-          "tokens_per_s": 247.97980769859473,
+          "elapsed_s": 4.408702400000038,
+          "tokens_per_s": 226.82411042305586,
           "final_cache_bytes": 4160,
           "peak_cache_bytes": 4160,
           "divergence_vs_full_sequence": {

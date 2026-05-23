@@ -10,6 +10,8 @@ wandb>=0.16.0
 gradio>=4.0.0
 huggingface_hub>=0.22.0
 
+# For reproducible smoke tests and benchmark reruns, prefer requirements.lock.
+
 # --- Optional: scientific-rigour modules ---
 # Uncomment to enable real IIT-Φ computation (Tononi lab's PyPhi):
 # pyphi>=1.2.0

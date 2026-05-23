@@ -31,6 +31,7 @@ from .llama_adapter import (
     attach_mt_adapters,
 )
 from .streaming import streaming_inference, prefill_state_only
+from .observability import JsonlMetricWriter, cache_summary, setup_logging
 
 # Optional scientific-rigour modules (gracefully degrade if dependencies missing)
 try:
@@ -88,6 +89,9 @@ __all__ = [
     "attach_mt_adapters",
     "streaming_inference",
     "prefill_state_only",
+    "JsonlMetricWriter",
+    "cache_summary",
+    "setup_logging",
     # Optional scientific-rigour modules
     "PYPHI_AVAILABLE",
     "PENNYLANE_AVAILABLE",

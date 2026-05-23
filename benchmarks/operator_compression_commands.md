@@ -17,6 +17,7 @@ python demo.py --ckpt checkpoints/final.pt --prompt "copy targets:" --direct_tar
 
 ```powershell
 python benchmarks/state_only_streaming.py --steps 100 1000
+python benchmarks/state_only_streaming.py --steps 100 --metrics_jsonl benchmarks/state_only_metrics.jsonl
 ```
 
 ## Sparse Resonance Prototype
@@ -34,7 +35,9 @@ python benchmarks/operator_compression_report.py --steps 100 1000
 
 Notes:
 
+- Use `requirements.lock` when rerunning published smoke benchmarks.
 - State-only mode keeps recurrent `h_prev` and drops historical KV tensors.
 - Direct target mode is useful only after the direct head has task-specific supervision.
 - Scale-gate masking is blend-level masking unless `--sparse_resonance_kernel` is enabled.
 - Sparse resonance skips inactive tau-scale projection/scan work, but top-k selection is chunk-dependent and can change exact KV parity.
+- SQLite session persistence is local-first; production API serving needs a dedicated state-store adapter.

@@ -153,6 +153,9 @@ def render_markdown(results: dict) -> str:
         "- State-only streaming is intentionally lossy relative to full attention because it keeps only recurrent state.",
         "- Current scale-gate masking affects the blend weights and diagnostics. It is not yet a custom sparse kernel that avoids the upstream resonance matrix multiply.",
         "- Optional `--sparse_resonance_kernel` skips inactive tau-scale projection/scan work, but top-k scale selection is chunk-dependent and can change KV parity relative to dense full-sequence execution.",
+        "- `benchmarks/state_only_streaming.py --metrics_jsonl <path>` emits structured JSONL metric events for observability plumbing.",
+        "- Use `requirements.lock` to reproduce the local smoke benchmark environment; `requirements.txt` intentionally keeps flexible research-time lower bounds.",
+        "- SQLite session persistence is local-first and should not be treated as a distributed high-QPS state store.",
         "- Claims in external material should report measured cache size and latency separately from future compute-skipping hypotheses.",
         "",
     ])
