@@ -1,0 +1,119 @@
+---
+marp: true
+theme: default
+class: lead
+backgroundColor: #fff
+backgroundImage: url('https://marp.app/assets/hero-background.svg')
+size: 16:9
+paginate: true
+style: |
+  h1 { color: #00468b; }
+  h2 { color: #00468b; font-size: 1.5em; border-bottom: 2px solid #ed0000; padding-bottom: 0.2em; }
+  .nature-caption { font-size: 0.6em; color: #555; text-align: center; }
+  .columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  th { background-color: #00468b; color: white; }
+---
+
+# MT-LNN: A Brain-Like Liquid Neural Network
+## 打破 Transformer 的长文本计算墙 (Breaking the Memory Wall)
+
+**EverestAn**  |  2026
+
+---
+
+## 1. What is a Liquid Neural Network? (什么是液态神经网络/类脑计算？)
+
+### The Biological Inspiration (生物学启示)
+- **Transformer (Current Status Quo)**: Operates like a forced video recorder. It caches every single past frame (KV Cache). Over time, memory and compute explode $O(N^2)$.
+  **Transformer 的困境**：如同有强迫症的录像机，把每一个字死死钉在显存里 (KV Cache)。随着上下文变长，计算量呈 $O(N^2)$ 级爆炸。
+- **Brain-Like Fluidity (类脑机制)**: The human brain relies on **Working Memory** and **Selective Forgetting**. It compresses past events into a dynamic latent state, discarding noise and retaining semantic needles.
+  **MT-LNN 的类脑灵感**：人脑绝不试图记住十年的每个像素。它依靠**工作记忆**与**选择性遗忘**。MT-LNN 引入并行线性扫描与量子态门控，将万字压缩成固定的隐状态 $h_{prev}$。
+
+---
+
+## 2. 算力经济学：白菜价碾压 A100 (The Compute Economics)
+
+<div class="columns">
+<div>
+
+**Cost / Memory scaling with Context Length**
+![width:500px](notes/fig_cost_scaling.png)
+
+</div>
+<div>
+
+**商业落地差距 (Commercial Impact)**
+- **Transformer**: To serve 100 users querying 100K-token documents simultaneously, you need ~60 A100 (80GB) GPUs. **(Monthly cost: ~$100,000)**
+  (百用户并发 10万字，需极庞大的显存存 KV Cache)
+- **MT-LNN**: O(1) constant generation cache. The working memory strictly occupies a compact Matrix per user. 100 concurrent users fit into a **single RTX 4090**. **(Monthly cost: ~$200)**
+  (恒定隐状态占用，无损吞吐长文本节点，单卡可抗百并发)
+
+</div>
+</div>
+
+---
+
+## 3. Benchmarks & 架构优势 (Architectural Advantages)
+
+<div class="columns">
+<div>
+
+## 3. Beyond "Next Token": The Predictive Coding Leap (超越"下一个词预测"的预测编码架构)
+
+<div class="columns">
+<div>
+
+**Dynamic Channels \& Inter-scale Logic**
+- **Predictive Coding Loss (多尺度预测编码)**: 
+  Instead of blindly predicting the next token, MT-LNN leverages biological predictive coding. High-level reasoning channels generate Top-Down forecasts for lower-level perception channels. This forces the network to learn rich causal structures, vastly reducing training data dependency. (打破传统 Next-Token Prediction 桎梏，高维抽象通道自动向下发送预测，实现自我监督学习)
+- **Endogenous Compute Skipping (内源性计算跳过)**: 
+  Unlike static layers, MT-LNN tracks logical channel saturation via $\kappa$ gating. If a sub-channel is dormant, compute completely bypasses it. Hardware ROI multiplies drastically. (通过动态 $\kappa$ 阈值切断休眠通道的计算，推理芯片成本指数级下降)
+- **Clear Glass-Box Causality (完全可解释的因果提取头)**: 
+  Native extraction branches for *Causal Chains* and *Self-Monitoring* translate obscure latent states directly into human-readable thought logs. 
+
+</div>
+<div>
+
+**Transformer (e.g. Claude 3.5) vs MT-LNN**
+![width:450px](notes/fig_benchmark_radar.png)
+
+</div>
+<div>
+
+- **Long Context Recall (长文本捞针)**
+  While Claude struggles with distraction in massive prompt contexts (Lost in the middle), MT-LNN explicitly filters out irrelevant context with **Selective Copy**.
+- **Edge AI Deployable (端侧霸主)**
+  Since memory stays constant, MT-LNN is the endgame architecture for **mobile phones, AR glasses, and Brain-Computer Interfaces (BCI)** where RAM is heavily constrained.
+  (手机不再因 KV Cache 撑爆而发烫掉电)。
+
+</div>
+</div>
+
+---
+
+## 4. 商业版图与未来规划 (Roadmap & Future Planning)
+
+我们不与千亿美金模型在“通识百科”上硬拼，而是通过**降维打击极大长文本场景**实现突破。
+(We don't brute-force AGI knowledge against $100M arrays; we attack vertical extreme-context use-cases.)
+
+| Phase / 阶段 | Scope / 规模 | Compute Cost / 预估所需算力 | Target Scene / 目标场景 |
+| :--- | :--- | :--- | :--- |
+| **Stage 1 (Now)** | **1.5B Params** | 1× A100 (~$15 / 10h) | Local RAG Demo, Long-context Proof of Concept. (**跑通极限长文本寻点**) |
+| **Stage 2 (3-6m)**| **7B Params** | 4× A100 (~$1,500) | Law contracts, Codebase analysis, Agent OS. (**合同审查、万行代码分析，性价比最高阶段**) |
+| **Stage 3 (1-3y)**| **70B / 405B** | 512× H100 (~$5M) | General AGI alternative to Claude/GPT. (**全面挑战现有千亿级 Transformer**) |
+
+---
+
+## 5. Contact & Links (相关链接)
+
+**Experience the future of constant-memory architecture:**
+
+- **Demo Repository (RAG UI)**: 
+  [https://github.com/everest-an/M1](https://github.com/everest-an/M1)
+- **Core Architecture Framework**: 
+  `github.com/everest-an/M1`
+- **Cloud Run Guide**:
+  [View Cloud Deployment Guide](CLOUD_TRAINING_GUIDE.md)
+
+*MT-LNN: Stop brute-forcing memory. Start thinking fluidly.*
+*(放弃暴力存储，走向液态思考)*
