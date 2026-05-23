@@ -7,6 +7,8 @@ Turn MT-LNN from a standard autoregressive decoder into a hybrid operator-compre
 - Compress target extraction into one global-state projection.
 - Compress long context into recurrent `h_prev` state instead of replayed tokens.
 - Compress multi-scale computation by activating only the needed tau channels.
+- Optionally skip upstream resonance work by selecting top-k tau scales before
+  the per-scale projection and recurrent scan.
 
 The product claim must stay precise:
 
@@ -18,6 +20,8 @@ The product claim must stay precise:
 - Do not remove normal autoregressive generation.
 - Do not persist KV cache as long-term memory; KV is position-tied token history.
 - Do not enable compute skipping by default until benchmarked.
+- Do not present the optional sparse resonance path as a custom CUDA kernel;
+  the current implementation is a conservative PyTorch top-k path over tau scales.
 
 ## Architecture
 
@@ -116,10 +120,13 @@ Metrics:
 - Cache bytes as sequence length grows.
 - Divergence between full replay, KV cache, and state-only recurrent mode.
 - Tau gate activity distribution once channel gating lands.
+- Sparse resonance selected-scale ratio and output divergence when enabled.
 
 ## Risks
 
 - State-only mode is not exact long-context recall.
 - Direct heads require task-specific supervision.
 - Dynamic channel skipping can destabilize training if gates close too early.
+- Sparse resonance top-k selection is chunk-dependent; when enabled it is a
+  speed/compute experiment, not the exact KV-parity path.
 - Marketing language must separate measured benchmark results from architecture hypotheses.

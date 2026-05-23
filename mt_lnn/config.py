@@ -104,6 +104,8 @@ class MTLNNConfig:
     scale_gate_init_bias: float = 2.0
     scale_gate_active_threshold: float = 0.5
     scale_gate_skip_threshold: float = 0.0
+    sparse_resonance_kernel: bool = False
+    sparse_resonance_top_k: int = 1
 
     # Derived (set in __post_init__)
     d_proto: int = field(init=False)

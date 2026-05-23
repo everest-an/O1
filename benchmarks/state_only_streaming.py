@@ -63,6 +63,8 @@ def build_config(args, max_steps: int) -> MTLNNConfig:
         scale_gate_active_threshold=args.scale_gate_active_threshold,
         scale_gate_skip_threshold=args.scale_gate_skip_threshold,
         compute_skip_threshold=args.compute_skip_threshold,
+        sparse_resonance_kernel=args.sparse_resonance_kernel,
+        sparse_resonance_top_k=args.sparse_resonance_top_k,
     )
 
 
@@ -247,7 +249,7 @@ def run_one(model: MTLNNModel, tokens: torch.Tensor, args, device: str) -> Dict:
     diagnostics = model.get_mt_diagnostics()
     gate_keys = {
         key: value for key, value in diagnostics.items()
-        if key.startswith("scale_gate")
+        if key.startswith("scale_gate") or key.startswith("sparse_resonance")
     }
 
     return {
@@ -284,6 +286,9 @@ def parse_args():
                         help="Mask scale gates below this value in the blend only")
     parser.add_argument("--compute_skip_threshold", type=float, default=0.0,
                         help="Legacy alias for blend-level scale masking")
+    parser.add_argument("--sparse_resonance_kernel", action="store_true",
+                        help="Compute only top-k tau scales selected by gate means")
+    parser.add_argument("--sparse_resonance_top_k", type=int, default=1)
     return parser.parse_args()
 
 
@@ -326,6 +331,9 @@ def main():
                 f"  scale gates: mean={mean:.3f} "
                 f"active_ratio={active:.3f} nonzero_ratio={nonzero:.3f}"
             )
+            sparse_ratio = gate_diag.get("sparse_resonance_scale_ratio")
+            if sparse_ratio is not None:
+                print(f"  sparse resonance: selected_scale_ratio={sparse_ratio:.3f}")
         for row in run["modes"]:
             if row.get("skipped"):
                 print(f"  {row['mode']}: skipped ({row['reason']})")

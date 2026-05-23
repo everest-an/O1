@@ -362,6 +362,7 @@ class MTLNNModel(nn.Module):
         tau_vals, gamma_vals, pol_vals = [], [], []
         lat_norms, rmc_gates = [], []
         scale_gate_means, active_scale_ratios, nonzero_scale_ratios = [], [], []
+        sparse_scale_ratios, sparse_selected = [], []
 
         for block in self.blocks:
             # τ tensor for this block's resonance bank: shape (P, S)
@@ -381,6 +382,8 @@ class MTLNNModel(nn.Module):
                 scale_gate_means.append(resonance.last_scale_gate_mean.detach().cpu())
                 active_scale_ratios.append(float(resonance.last_active_scale_ratio.item()))
                 nonzero_scale_ratios.append(float(resonance.last_nonzero_scale_ratio.item()))
+                sparse_scale_ratios.append(float(resonance.last_sparse_scale_ratio.item()))
+                sparse_selected.append(resonance.last_sparse_selected_scales.detach().cpu())
 
         if tau_vals:
             t = torch.tensor(tau_vals)
@@ -403,8 +406,12 @@ class MTLNNModel(nn.Module):
             diag["scale_gate_mean"] = gate_mean.mean().item()
             diag["scale_gate_active_ratio"] = sum(active_scale_ratios) / len(active_scale_ratios)
             diag["scale_gate_nonzero_ratio"] = sum(nonzero_scale_ratios) / len(nonzero_scale_ratios)
+            diag["sparse_resonance_scale_ratio"] = sum(sparse_scale_ratios) / len(sparse_scale_ratios)
+            sparse_mean = torch.stack(sparse_selected).mean(dim=0)
             for idx, value in enumerate(gate_mean.tolist()):
                 diag[f"scale_gate_s{idx}_mean"] = float(value)
+            for idx, value in enumerate(sparse_mean.tolist()):
+                diag[f"sparse_resonance_s{idx}_selected"] = float(value)
 
         diag["coherence_scale"] = self.coherence.coherence_scale.item()
         diag["collapse_threshold"] = self.coherence.collapse_threshold.item()

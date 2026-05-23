@@ -63,6 +63,8 @@ def run_benchmark(args) -> dict:
         scale_gate_active_threshold=args.scale_gate_active_threshold,
         scale_gate_skip_threshold=args.scale_gate_skip_threshold,
         compute_skip_threshold=args.compute_skip_threshold,
+        sparse_resonance_kernel=args.sparse_resonance_kernel,
+        sparse_resonance_top_k=args.sparse_resonance_top_k,
     )
 
     torch.manual_seed(args.seed)
@@ -125,8 +127,8 @@ def render_markdown(results: dict) -> str:
         "",
         "## Scale-Gate Diagnostics",
         "",
-        "| Steps | Gate mean | Active ratio | Nonzero ratio | Per-scale means |",
-        "|---:|---:|---:|---:|---|",
+        "| Steps | Gate mean | Active ratio | Nonzero ratio | Sparse selected ratio | Per-scale means |",
+        "|---:|---:|---:|---:|---:|---|",
     ])
 
     for run in results["runs"]:
@@ -139,7 +141,8 @@ def render_markdown(results: dict) -> str:
         lines.append(
             f"| {run['steps']} | {diag.get('scale_gate_mean', 0.0):.3f} | "
             f"{diag.get('scale_gate_active_ratio', 0.0):.3f} | "
-            f"{diag.get('scale_gate_nonzero_ratio', 0.0):.3f} | {per_scale_text} |"
+            f"{diag.get('scale_gate_nonzero_ratio', 0.0):.3f} | "
+            f"{diag.get('sparse_resonance_scale_ratio', 0.0):.3f} | {per_scale_text} |"
         )
 
     lines.extend([
@@ -149,6 +152,7 @@ def render_markdown(results: dict) -> str:
         "- KV streaming remains the exact incremental path; its divergence from the full-sequence oracle should stay near numerical noise.",
         "- State-only streaming is intentionally lossy relative to full attention because it keeps only recurrent state.",
         "- Current scale-gate masking affects the blend weights and diagnostics. It is not yet a custom sparse kernel that avoids the upstream resonance matrix multiply.",
+        "- Optional `--sparse_resonance_kernel` skips inactive tau-scale projection/scan work, but top-k scale selection is chunk-dependent and can change KV parity relative to dense full-sequence execution.",
         "- Claims in external material should report measured cache size and latency separately from future compute-skipping hypotheses.",
         "",
     ])
@@ -180,6 +184,8 @@ def parse_args():
     parser.add_argument("--scale_gate_active_threshold", type=float, default=0.5)
     parser.add_argument("--scale_gate_skip_threshold", type=float, default=0.0)
     parser.add_argument("--compute_skip_threshold", type=float, default=0.0)
+    parser.add_argument("--sparse_resonance_kernel", action="store_true")
+    parser.add_argument("--sparse_resonance_top_k", type=int, default=1)
     return parser.parse_args()
 
 

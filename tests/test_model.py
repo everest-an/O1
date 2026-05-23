@@ -629,6 +629,26 @@ def test_dynamic_scale_gate_diagnostics():
     print("[ok] test_dynamic_scale_gate_diagnostics")
 
 
+def test_sparse_resonance_kernel_topk():
+    cfg = small_config()
+    cfg.dynamic_scale_gates = True
+    cfg.sparse_resonance_kernel = True
+    cfg.sparse_resonance_top_k = 1
+    cfg.scale_gate_skip_threshold = 0.0
+    model = MTLNNModel(cfg).eval()
+
+    ids = torch.randint(0, cfg.vocab_size, (2, 8))
+    with torch.no_grad():
+        out = model(ids)
+
+    diag = model.get_mt_diagnostics()
+    assert out["logits"].shape == (2, 8, cfg.vocab_size)
+    expected = 1.0 / cfg.n_time_scales
+    assert abs(diag["sparse_resonance_scale_ratio"] - expected) < 1e-6
+    assert abs(diag["scale_gate_nonzero_ratio"] - expected) < 1e-6
+    print("[ok] test_sparse_resonance_kernel_topk")
+
+
 # ---------------------------------------------------------------------------
 # Runner
 # ---------------------------------------------------------------------------
@@ -647,6 +667,7 @@ def run_all():
     test_gqa_kv_cache_size()
     test_mt_diagnostics()
     test_dynamic_scale_gate_diagnostics()
+    test_sparse_resonance_kernel_topk()
     test_low_rank_polarity()
     test_nearest_neighbor_coupling()
     test_gwtb_bottleneck()

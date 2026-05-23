@@ -19,6 +19,12 @@ python demo.py --ckpt checkpoints/final.pt --prompt "copy targets:" --direct_tar
 python benchmarks/state_only_streaming.py --steps 100 1000
 ```
 
+## Sparse Resonance Prototype
+
+```powershell
+python benchmarks/state_only_streaming.py --steps 100 --sparse_resonance_kernel --sparse_resonance_top_k 1
+```
+
 ## Report
 
 ```powershell
@@ -29,5 +35,5 @@ Notes:
 
 - State-only mode keeps recurrent `h_prev` and drops historical KV tensors.
 - Direct target mode is useful only after the direct head has task-specific supervision.
-- Scale-gate masking is currently blend-level masking, not a custom sparse kernel.
-
+- Scale-gate masking is blend-level masking unless `--sparse_resonance_kernel` is enabled.
+- Sparse resonance skips inactive tau-scale projection/scan work, but top-k selection is chunk-dependent and can change exact KV parity.

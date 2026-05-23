@@ -64,7 +64,8 @@ Acceptance:
 - [x] Add examples for direct target and interactive stateful sessions.
 
 Deferred:
-- [ ] Replace blend-level masking with a custom sparse resonance kernel.
+- [x] Add an optional sparse resonance path that computes only top-k tau scales.
+- [ ] Replace the PyTorch top-k sparse path with a custom low-level sparse kernel if profiling justifies it.
 
 Acceptance:
 - Simple benchmark shows fewer active tau scales on low-information inputs.

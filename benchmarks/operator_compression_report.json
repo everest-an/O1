@@ -1,6 +1,6 @@
 {
   "benchmark": "operator_compression_report",
-  "created_at": "2026-05-23T21:49:02.580157+00:00",
+  "created_at": "2026-05-23T21:54:51.881823+00:00",
   "device": "cpu",
   "torch": "2.5.1+cu121",
   "config": {
@@ -51,6 +51,8 @@
     "scale_gate_init_bias": 2.0,
     "scale_gate_active_threshold": 0.5,
     "scale_gate_skip_threshold": 0.0,
+    "sparse_resonance_kernel": false,
+    "sparse_resonance_top_k": 1,
     "d_proto": 8,
     "d_proto_total": 104
   },
@@ -62,25 +64,31 @@
         "scale_gate_mean": 0.8806972503662109,
         "scale_gate_active_ratio": 1.0,
         "scale_gate_nonzero_ratio": 1.0,
+        "sparse_resonance_scale_ratio": 1.0,
         "scale_gate_s0_mean": 0.8807753324508667,
         "scale_gate_s1_mean": 0.8805087804794312,
         "scale_gate_s2_mean": 0.8808428645133972,
         "scale_gate_s3_mean": 0.8806242942810059,
-        "scale_gate_s4_mean": 0.8807345628738403
+        "scale_gate_s4_mean": 0.8807345628738403,
+        "sparse_resonance_s0_selected": 1.0,
+        "sparse_resonance_s1_selected": 1.0,
+        "sparse_resonance_s2_selected": 1.0,
+        "sparse_resonance_s3_selected": 1.0,
+        "sparse_resonance_s4_selected": 1.0
       },
       "modes": [
         {
           "mode": "full_sequence_oracle",
-          "elapsed_s": 0.017965100000310485,
-          "tokens_per_s": 5566.3480859150095,
+          "elapsed_s": 0.01944790000015928,
+          "tokens_per_s": 5141.9433460261,
           "final_cache_bytes": 0,
           "peak_cache_bytes": 0,
           "note": "single full causal forward; used as logit reference"
         },
         {
           "mode": "kv_cache_stream",
-          "elapsed_s": 0.3398512999997365,
-          "tokens_per_s": 294.24633655977635,
+          "elapsed_s": 0.3765155000000959,
+          "tokens_per_s": 265.5933155473666,
           "final_cache_bytes": 108992,
           "peak_cache_bytes": 108992,
           "divergence_vs_full_sequence": {
@@ -90,8 +98,8 @@
         },
         {
           "mode": "state_only_stream",
-          "elapsed_s": 0.32449480000013864,
-          "tokens_per_s": 308.1713482002093,
+          "elapsed_s": 0.3892009999999573,
+          "tokens_per_s": 256.9366471309451,
           "final_cache_bytes": 4160,
           "peak_cache_bytes": 4160,
           "divergence_vs_full_sequence": {
@@ -103,8 +111,8 @@
         },
         {
           "mode": "prefix_replay_stream",
-          "elapsed_s": 0.9580575999998473,
-          "tokens_per_s": 104.377857865765,
+          "elapsed_s": 1.0479079000001548,
+          "tokens_per_s": 95.4282337216708,
           "final_cache_bytes": 0,
           "peak_cache_bytes": 0,
           "divergence_vs_full_sequence": {
@@ -122,25 +130,31 @@
         "scale_gate_mean": 0.8807713389396667,
         "scale_gate_active_ratio": 1.0,
         "scale_gate_nonzero_ratio": 1.0,
+        "sparse_resonance_scale_ratio": 1.0,
         "scale_gate_s0_mean": 0.8810802698135376,
         "scale_gate_s1_mean": 0.8806363940238953,
         "scale_gate_s2_mean": 0.880742609500885,
         "scale_gate_s3_mean": 0.880537748336792,
-        "scale_gate_s4_mean": 0.8808598518371582
+        "scale_gate_s4_mean": 0.8808598518371582,
+        "sparse_resonance_s0_selected": 1.0,
+        "sparse_resonance_s1_selected": 1.0,
+        "sparse_resonance_s2_selected": 1.0,
+        "sparse_resonance_s3_selected": 1.0,
+        "sparse_resonance_s4_selected": 1.0
       },
       "modes": [
         {
           "mode": "full_sequence_oracle",
-          "elapsed_s": 0.08178330000009737,
-          "tokens_per_s": 12227.435185408383,
+          "elapsed_s": 0.08529649999991307,
+          "tokens_per_s": 11723.810472891844,
           "final_cache_bytes": 0,
           "peak_cache_bytes": 0,
           "note": "single full causal forward; used as logit reference"
         },
         {
           "mode": "kv_cache_stream",
-          "elapsed_s": 3.629964700000073,
-          "tokens_per_s": 275.48477262051057,
+          "elapsed_s": 4.417514999999639,
+          "tokens_per_s": 226.37161390512125,
           "final_cache_bytes": 1044992,
           "peak_cache_bytes": 1044992,
           "divergence_vs_full_sequence": {
@@ -150,8 +164,8 @@
         },
         {
           "mode": "state_only_stream",
-          "elapsed_s": 3.3707703000000038,
-          "tokens_per_s": 296.6680939368663,
+          "elapsed_s": 4.367730200000096,
+          "tokens_per_s": 228.9518706993344,
           "final_cache_bytes": 4160,
           "peak_cache_bytes": 4160,
           "divergence_vs_full_sequence": {
