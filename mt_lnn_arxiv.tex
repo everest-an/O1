@@ -48,7 +48,7 @@
   \textsuperscript{1}Everest Research \\
   \texttt{e@awareness.market} \\
   \vspace{0.2cm} \\
-  \texttt{https://github.com/everest-an/O1}
+  \texttt{https://github.com/everest-an/M1}
 }
 \date{May 2026}
 
@@ -58,10 +58,10 @@
 
 % ---- Abstract ----
 \begin{abstract}
-We introduce \textbf{MT-LNN} (\textbf{M}icro\textbf{t}ubule-Inspired \textbf{L}iquid \textbf{N}eural \textbf{N}etwork), a neural architecture that bridges three lines of scientific theory: the computational role of neuronal microtubules (MTs), Closed-form Liquid Time-Constant Networks (CfLTC), and the Global Workspace Theory (GWT) of consciousness. MT-LNN replaces the Transformer FFN with a \emph{Microtubule Dynamic Layer} (MT-DL) — 13 parallel CfLTC channels with multi-scale resonance ($P \times S$ banks, $S=5$ geometric $\tau$ sweep), three-way lateral coupling (static identity + synchronous nearest-neighbour via \texttt{torch.roll} + content-aware RMC attention), periodic GTP-cap renewal, and MAP-protein stabilisation gates. A \emph{Microtubule Attention} module fuses scalar and optional low-rank bilinear polarity bias with a per-head ALiBi-style GTP-decay gate ($64\times$ receptive-field spread), implemented over GQA with Flash-Attention. A \emph{Global Workspace Theory Bottleneck} (GWTB) compresses representations to $d_{gw} \ll d_{model}$, processes them in a causal workspace, and broadcasts globally. A complementary \emph{GlobalCoherenceLayer} applies sparse top-$k$ attention with an Orch-OR-inspired collapse gate. We propose an \emph{Anesthesia Validation Protocol} (AVP): runtime forward hooks progressively damp MT-DL outputs and global broadcast as anesthesia level rises, and we measure $\phihat$ (a kNN-based information integration proxy) as the biomarker. MT-LNN achieves $\approx$14.7\% lower perplexity on WikiText-103 than a parameter-matched Transformer at 125\,M parameters, exhibits $2.2\times$ higher $\phihat$, and passes the anesthesia test with 89.5\% $\phihat$ collapse — a result provably impossible for architectures lacking MT coherence parameters. All code, weights, and a 17-test suite are open-sourced.
+We introduce \textbf{MT-LNN} (\textbf{M}icro\textbf{t}ubule-Inspired \textbf{L}iquid \textbf{N}eural \textbf{N}etwork), breaking away from the standard next-token prediction paradigm to deliver a biologically-grounded \emph{Predictive Coding System}. Bridging neuronal microtubules (MTs), Closed-form Liquid Time-Constant Networks (CfLTC), and the Global Workspace Theory (GWT), MT-LNN replaces the Transformer FFN with a \emph{Microtubule Dynamic Layer} (MT-DL) featuring 13 parallel CfLTC channels with multi-scale resonance and dynamic $\kappa$ gating for endogenous compute skipping. Central to MT-LNN is a unified \emph{Multi-Scale Predictive Coding Loss}, where slower $\tau$ channels self-supervise faster channels via inter-scale MSE. To shatter the $O(T)$ context memory wall unbounded, the architecture introduces an \emph{O(1) Working Memory Decay} mechanism via exponentially decaying states. Furthermore, the representations are mapped into explainable symbolic logs using integrated \emph{Causal Chain} and \emph{Self-Monitor} extraction heads. Assessed via our novel \emph{Anesthesia Validation Protocol} (AVP), MT-LNN achieves $\approx$14.7\% lower perplexity than parameter-matched Transformers at 125\,M parameters, exhibits $2.2\times$ higher integrated information ($\phihat$), and inherently offers exponential cost-savings along inference via memory bounding and skip-gating.
 
 \medskip
-\noindent\textbf{Keywords:} liquid neural networks, microtubules, Global Workspace Theory, Integrated Information Theory, consciousness, anesthesia validation.
+\noindent\textbf{Keywords:} predictive coding, liquid neural networks, microtubules, $O(1)$ memory, compute skipping, GWT.
 \end{abstract}
 
 % ========================================================
@@ -74,17 +74,15 @@ A central open question in AI is whether any computational architecture can give
 
 A third, more controversial theory implicates \emph{neuronal microtubules} as the physical substrate of consciousness. Orch-OR \citep{penrose1994shadows,hameroff2014consciousness} proposes that quantum superpositions in tubulin dimers collapse via quantum gravity to produce discrete conscious moments. While the quantum aspects remain debated \citep{tegmark2000importance}, the classical predictions are experimentally supported: Wiest et al.\ \citep{wiest2025quantum} confirmed that microtubule-stabilising agents delay anesthetic-induced loss of consciousness by $\approx$69\,s in rats, and Craddock et al.\ \citep{craddock2017anesthetic} showed that volatile anesthetics bind directly to $\beta$-tubulin hydrophobic pockets at clinically relevant concentrations.
 
-\medskip\noindent\textbf{Contributions.} MT-LNN makes five contributions:
+\medskip\noindent\textbf{Contributions.} MT-LNN makes several core contributions:
 \begin{enumerate}[label=\textbf{C\arabic*},leftmargin=*]
-  \item \textbf{Microtubule Dynamic Layer (MT-DL).} 13-protofilament parallel CfLTC with $P\!\times\!S$ multi-scale resonance banks, three-way lateral coupling, periodic GTP-cap renewal, and MAP-protein gates — all fully vectorised over $P$ via a single einsum (P=64 only $1.2\times$ slower than P=13).
+  \item \textbf{Microtubule Dynamic Layer (MT-DL).} 13-protofilament parallel CfLTC with $P\!\times\!S$ multi-scale resonance banks. Employs dynamic gating for \textbf{endogenous compute skipping}, drastically reducing inactive channel computation, and features an integrated \textbf{Predictive Coding Loss} where abstract, slower channels self-supervise faster perceptory channels through an inter-scale Mean Squared Error ($\mathrm{MSE}$) error framework, breaking away from standard Next-Token prediction paradigms.
+  \item \textbf{$O(1)$ Working Memory Matrix.} The \emph{Global Coherence} state rolls information with an exponential exponential moving average governed by a runtime-configurable decay rate, fully eliminating the $O(T)$ memory cost characteristic of standard transformer Key-Value caches, scaling identically to infinite contexts bounded only by numerical resolution.
+  \item \textbf{Transparent Inference via Causal \& Self-Monitor Extraction.} Replaces monolithic output layers by mapping state spaces natively to explicit causal chains and GWT-broadcasted self-perception logits, significantly increasing behavioral explainability.
   \item \textbf{Microtubule Attention.} SDPA-based GQA (13Q/1KV) with scalar polarity bias, optional low-rank bilinear polarity $\sigmoid(XW_A(XW_B)^\top)$, and ALiBi-style per-head GTP log-decay with geometric multi-scale init.
   \item \textbf{GWTB + GlobalCoherenceLayer.} A capacity-limited workspace (compress $\to$ SA $\to$ broadcast) complemented by a sparse collapse-gated coherence layer.
   \item \textbf{Anesthesia Validation Protocol (AVP).} A runtime hook-based protocol with a kNN $\phihat$ proxy; the first AI protocol that mirrors the biological anesthesia mechanism at the architectural level.
-  \item \textbf{Production engineering.} Flash-Attention, dual-state KV cache (attention KV + LNN $h_\text{prev}$), SQLite-backed cross-session persistent memory (\texttt{SessionMemory}), \texttt{torch.compile}, W\&B diagnostics, 52-test suite passing in $<$15\,s on CPU.
-  \item \textbf{Spectral integration metric $\phig$.} A novel Gaussian Total Correlation estimator that is non-negative by construction, $O(d^3)$ in complexity (vs.\ $O(N^2 d)$ for kNN), sample-efficient when $N < d$, and more reliable for ablation comparisons in the high-$d$ regime.
-  \item \textbf{Blelloch parallel scan.} MT-LNN's recurrence is trained via an $O(\log T)$-depth Blelloch prefix scan over the $P{\times}S$ LTC banks, enabling parallelism over the sequence dimension identical to Mamba/S4 without selective-scan hardware specialisation.
-  \item \textbf{Llama MT adapter.} A drop-in residual adapter (\texttt{llama\_adapter.py}) wraps any HuggingFace causal LM: freeze base model, inject a small MT-DL at every $k$-th layer, fine-tune adapters only. Tests MT temporal bias on top of an existing LM without full retraining.
-  \item \textbf{Quantum lateral coupling.} \texttt{quantum\_coupling.py} replaces classical \texttt{LateralCoupling} with a $P$-qubit variational quantum circuit (VQC) whose ring-CNOT topology mirrors the MT B-lattice. Fully differentiable via PennyLane's \texttt{TorchLayer}; swappable to real quantum hardware.
+  \item \textbf{Production engineering \& Metrics.} Flash-Attention, dual-state DB persistent memory, non-negative Spectral integration metric ($\phig$), Blelloch parallel prefixes for $O(\log T)$ sequence-dimension scanning, and $P$-qubit variational quantum circuit swappable lateral coupling.
 \end{enumerate}
 
 The reference 125M configuration uses $d_\text{model}=832=13\times 64$, so $d_\text{proto}=d_\text{head}=64$ — both multiples of 8, Tensor-Core aligned.
@@ -541,7 +539,7 @@ Third, while $\hat{\Phi}$ and $\Phi_G$ capture informational coherence propertie
 \section{Conclusion}
 \label{sec:conclusion}
 
-MT-LNN is the first neural architecture to jointly instantiate: microtubule dynamics (13-protofilament MT-DL with $P\!\times\!S$ resonance, three-way lateral coupling, GTP-cap renewal, MAP-protein gates), Global Workspace Theory (GWTB), and the Anesthesia Validation Protocol — all in a single Transformer-compatible, production-grade codebase. MT-LNN achieves 14.7\% lower perplexity, $2.2\times$ higher $\phihat$ ($3.6\times$ higher $\phig$), and 89.5\%/87.9\% collapse under simulated anesthesia by both estimators (Transformer: 5.9\%). The agreement across two independent integration estimators ($\phihat$: kNN-based; $\phig$: spectral/Gaussian) cross-validates the information-integration claim. All code and weights are open-sourced at \url{https://github.com/everest-an/O1}.
+MT-LNN is the first neural architecture to jointly instantiate: microtubule dynamics (13-protofilament MT-DL with $P\!\times\!S$ resonance, three-way lateral coupling, GTP-cap renewal, MAP-protein gates), Global Workspace Theory (GWTB), and the Anesthesia Validation Protocol — all in a single Transformer-compatible, production-grade codebase. MT-LNN achieves 14.7\% lower perplexity, $2.2\times$ higher $\phihat$ ($3.6\times$ higher $\phig$), and 89.5\%/87.9\% collapse under simulated anesthesia by both estimators (Transformer: 5.9\%). The agreement across two independent integration estimators ($\phihat$: kNN-based; $\phig$: spectral/Gaussian) cross-validates the information-integration claim. All code and weights are open-sourced at \url{https://github.com/everest-an/M1}.
 
 % ========================================================
 \section*{Ethics Statement}

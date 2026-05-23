@@ -42,34 +42,41 @@ def add_arrow(p1, p2, color=PALETTE['baseline_dark'], style='-|>', lw=1.5):
     ax.add_patch(arrow)
 
 # 1. Input Layer
-add_block(5, 5, 90, 6, "Input Sequence ($X$)", PALETTE['neutral_light'])
+add_block(2, 2, 96, 5, "Input Token Embedding & States ($X_t$)", PALETTE['neutral_light'])
 
 # 2. MT-DL Layer (Microtubule Dynamic Layer)
-add_block(5, 18, 90, 14, "", PALETTE['bg_lilac'], alpha=0.5)
-ax.text(10, 29, "Microtubule Dynamic Layer (MT-DL)", fontweight='bold', color=PALETTE['baseline_dark'])
+add_block(2, 10, 96, 20, "", PALETTE['bg_lilac'], alpha=0.5)
+ax.text(50, 27, "Microtubule Liquid Neural Layer (Parallel Scan)", fontweight='bold', color=PALETTE['baseline_dark'], ha='center')
 
-# Inside MT-DL: 13 Protofilaments
+# Inside MT-DL: Protofilaments with Dynamic Gating & Predictive Coding
 for i in range(13):
-    add_block(8 + i*6.5, 20, 5, 5, f"P{i+1}", PALETTE['green_1'], fontsize=6)
+    add_block(5 + i*7.2, 18, 5.5, 6, f"$\\tau_{i+1}$", PALETTE['green_1'], fontsize=7)
 
-ax.text(50, 16, "13 Parallel CfLTC Channels with Lateral Coupling", ha='center', fontsize=7, color=PALETTE['neutral_mid'])
+ax.text(50, 14, "13 Parallel Channels ($\\kappa$ Dynamic Gated & Compute Skip)", ha='center', fontsize=7, color=PALETTE['neutral_mid'])
+# Predictive coding arrows inside MT-DL
+add_arrow((65.2, 20.5), (55.2, 20.5), color=PALETTE['magenta'], lw=1)
+ax.text(60.2, 21.5, "Pred Loss", ha='center', fontsize=5, color=PALETTE['magenta'])
 
-# 3. Microtubule Attention & GWTB
-add_block(5, 38, 40, 8, "Microtubule Attention\n(GTP-decay gate)", PALETTE['teal'], text_color='white')
-add_block(55, 38, 40, 8, "Global Workspace Bottleneck\n(Compress to $d_{gw}$ & Broadcast)", PALETTE['gold'])
+# 3. GWTB & Infinite Cache
+add_block(5, 33, 42, 8, "Global Workspace Bottleneck\n(Compress & Broadcast)", PALETTE['gold'])
+add_block(53, 33, 42, 8, "$O(1)$ Working Memory\n(Exponential Decay)", PALETTE['teal'], text_color='white')
 
-# 4. Global Coherence / Output
-add_block(5, 52, 90, 6, "Global Coherence Layer (Orch-OR) & Output Projection", PALETTE['magenta'], text_color='white')
+# 4. Output Heads
+add_block(5, 46, 28, 8, "Next-Token\n(Target Head)", PALETTE['neutral_mid'], text_color='white')
+add_block(36, 46, 28, 8, "Causal Chain\nExtraction", PALETTE['magenta'], text_color='white')
+add_block(67, 46, 28, 8, "Self-Monitor\nExtraction", PALETTE['baseline_dark'], text_color='white')
 
 # Arrows
-add_arrow((50, 11), (50, 18))  # Input to MT-DL
-add_arrow((25, 32), (25, 38))  # MT-DL to Attention
-add_arrow((75, 32), (75, 38))  # MT-DL to GWTB
-add_arrow((45, 42), (55, 42), style='<|-|>', color=PALETTE['neutral_mid']) # Attn <-> GWTB
-add_arrow((25, 46), (25, 52))  # Attn to Coherence
-add_arrow((75, 46), (75, 52))  # GWTB to Coherence
+add_arrow((50, 7), (50, 10))  # Input to MT-DL
+add_arrow((26, 30), (26, 33))  # MT-DL to GWTB
+add_arrow((74, 30), (74, 33))  # MT-DL to Memory
+add_arrow((47, 37), (53, 37), style='<|-|>', color=PALETTE['neutral_mid']) # GWTB <-> Memory
+add_arrow((26, 41), (19, 46)) # to Target
+add_arrow((50, 41), (50, 46)) # to Causal
+add_arrow((74, 41), (81, 46)) # to Monitor
 
 plt.tight_layout()
 plt.savefig('fig_architecture.pdf', bbox_inches='tight', dpi=300)
+plt.savefig('fig_architecture.svg', bbox_inches='tight', dpi=300)
 plt.savefig('fig_architecture.png', bbox_inches='tight', dpi=300)
-print("Saved fig_architecture.pdf and .png")
+print("Saved fig_architecture.pdf, .svg, and .png")

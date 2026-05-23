@@ -65,6 +65,7 @@ Acceptance:
 
 Deferred:
 - [x] Add an optional sparse resonance path that computes only top-k tau scales.
+- [x] Add dense vs sparse resonance ablation benchmark.
 - [ ] Replace the PyTorch top-k sparse path with a custom low-level sparse kernel if profiling justifies it.
 
 Acceptance:

@@ -23,6 +23,7 @@ python benchmarks/state_only_streaming.py --steps 100 1000
 
 ```powershell
 python benchmarks/state_only_streaming.py --steps 100 --sparse_resonance_kernel --sparse_resonance_top_k 1
+python benchmarks/sparse_resonance_ablation.py --steps 100 --top_k 1 2 3
 ```
 
 ## Report

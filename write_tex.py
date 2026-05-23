@@ -51,7 +51,7 @@ tex_content = r"""\documentclass[11pt]{article}
   \textsuperscript{1}Everest Research \\
   \texttt{e@awareness.market} \\
   \vspace{0.2cm} \\
-  \texttt{https://github.com/everest-an/O1}
+  \texttt{https://github.com/everest-an/M1}
 }
 \date{2026年5月}
 

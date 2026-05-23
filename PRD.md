@@ -3,7 +3,7 @@
 **Version:** 1.1  
 **Date:** 2026-05-12  
 **Status:** Active  
-**Repo:** https://github.com/everest-an/O1
+**Repo:** https://github.com/everest-an/M1
 
 ---
 

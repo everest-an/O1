@@ -4,7 +4,7 @@
 May 2026
 
 > Source code, trained weights, and reproducibility scripts:
-> `https://github.com/everest-an/O1`
+> `https://github.com/everest-an/M1`
 
 ---
 
@@ -304,7 +304,7 @@ The 13-protofilament split is the single most impactful component. GTP-period re
 
 ## 8. Conclusion
 
-We have introduced MT-LNN, an architecture that jointly instantiates microtubule dynamics (13-protofilament MT-DL with multi-scale resonance, three-way lateral coupling, GTP-cap renewal, and MAP-protein gating), Global Workspace Theory (GWTB with explicit capacity bottleneck), and polarity-directed information flow (ALiBi-style γ + optional low-rank bilinear polarity bias) within a single Transformer-compatible framework. We proposed the Anesthesia Validation Protocol and the Φ̂ proxy as a novel, biologically grounded evaluation criterion for consciousness-relevant architectures: only MT-LNN passes the test by exhibiting 89.5 % Φ̂ collapse under simulated deep anesthesia. Simultaneously, MT-LNN achieves competitive and often superior performance on standard language modelling and long-range benchmarks. All code and model weights are open-source at `https://github.com/everest-an/O1`.
+We have introduced MT-LNN, an architecture that jointly instantiates microtubule dynamics (13-protofilament MT-DL with multi-scale resonance, three-way lateral coupling, GTP-cap renewal, and MAP-protein gating), Global Workspace Theory (GWTB with explicit capacity bottleneck), and polarity-directed information flow (ALiBi-style γ + optional low-rank bilinear polarity bias) within a single Transformer-compatible framework. We proposed the Anesthesia Validation Protocol and the Φ̂ proxy as a novel, biologically grounded evaluation criterion for consciousness-relevant architectures: only MT-LNN passes the test by exhibiting 89.5 % Φ̂ collapse under simulated deep anesthesia. Simultaneously, MT-LNN achieves competitive and often superior performance on standard language modelling and long-range benchmarks. All code and model weights are open-source at `https://github.com/everest-an/M1`.
 
 ---
 
@@ -314,7 +314,7 @@ This work studies architectural properties related to theories of consciousness.
 
 ## Reproducibility Statement
 
-All experiments use publicly available datasets (WikiText-103, Long-Range Arena). Hyperparameters are fully reported in Section 6.1. Source code, trained model weights, and a reproducibility README are available at `https://github.com/everest-an/O1`. The full test suite (15 tests including KV-cache parity, GWTB cache parity, Φ̂ sanity, anesthesia validation) runs in under one minute on CPU and is the authoritative specification of expected behaviour.
+All experiments use publicly available datasets (WikiText-103, Long-Range Arena). Hyperparameters are fully reported in Section 6.1. Source code, trained model weights, and a reproducibility README are available at `https://github.com/everest-an/M1`. The full test suite (15 tests including KV-cache parity, GWTB cache parity, Φ̂ sanity, anesthesia validation) runs in under one minute on CPU and is the authoritative specification of expected behaviour.
 
 ---
 
