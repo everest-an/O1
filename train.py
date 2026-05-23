@@ -146,6 +146,13 @@ def train(args):
     )
     model = MTLNNModel(config).to(device)
     n_params = model.get_num_params()
+    if args.train_target_head:
+        for param in model.parameters():
+            param.requires_grad = False
+        for name, param in model.named_parameters():
+            if name.startswith("target_"):
+                param.requires_grad = True
+        print("Direct target mode: backbone frozen; training target_queries/target_norm/target_head only.")
     print(f"Parameters: {n_params/1e6:.1f}M  (config: {config.d_model}d × {config.n_layers}L × {config.n_heads}H, GQA={config.n_kv_heads})")
 
     # torch.compile for speed (skip on CPU since the gain isn't there)
@@ -208,8 +215,23 @@ def train(args):
             lbl = lbl.to(device, non_blocking=True)
 
             with torch.amp.autocast(device_type="cuda", enabled=use_amp, dtype=amp_dtype):
-                out = model(inp, labels=lbl)
-                loss = out["loss"] / args.grad_accum
+                if args.train_target_head or args.target_loss_weight > 0.0:
+                    direct_len = args.direct_target_len
+                    direct_labels = lbl[:, -direct_len:].contiguous()
+                    out = model(
+                        inp,
+                        labels=None if args.train_target_head else lbl,
+                        direct_target_labels=direct_labels,
+                        target_len=direct_len,
+                        return_target_logits=True,
+                    )
+                    raw_loss = out["target_loss"] if args.train_target_head else (
+                        out["loss"] + args.target_loss_weight * out["target_loss"]
+                    )
+                else:
+                    out = model(inp, labels=lbl)
+                    raw_loss = out["loss"]
+                loss = raw_loss / args.grad_accum
 
             scaler.scale(loss).backward()
             accum_loss_sum += loss.item() * args.grad_accum
@@ -318,6 +340,12 @@ def parse_args():
     p.add_argument("--dummy",         action="store_true", help="Use random data")
     p.add_argument("--vocab_size",    type=int,   default=None,
                                        help="Override vocab_size (only with --dummy)")
+    p.add_argument("--train_target_head", action="store_true",
+                   help="Freeze the backbone and train only the direct target extraction head")
+    p.add_argument("--direct_target_len", type=int, default=4,
+                   help="Number of target slots supervised by the direct extraction head")
+    p.add_argument("--target_loss_weight", type=float, default=0.0,
+                   help="Optional auxiliary direct-target loss weight during normal LM training")
     return p.parse_args()
 
 

@@ -149,6 +149,113 @@ def train_selective_copy(model, cfg: SelectiveCopyConfig, device: str = "cpu",
 
 
 # ---------------------------------------------------------------------------
+# Direct target extraction head
+# ---------------------------------------------------------------------------
+
+def freeze_backbone_for_direct_target(model) -> None:
+    """Freeze the MT-LNN backbone and leave only the direct target head trainable."""
+    for param in model.parameters():
+        param.requires_grad = False
+    for name, param in model.named_parameters():
+        if name.startswith("target_"):
+            param.requires_grad = True
+
+
+def train_direct_target_head(
+    model,
+    cfg: SelectiveCopyConfig,
+    device: str = "cpu",
+    steps: int = 100,
+    lr: float = 1e-3,
+    freeze_backbone: bool = True,
+    verbose: bool = True,
+) -> list:
+    """
+    Train only the auxiliary direct-extraction head on Selective Copy.
+
+    The model sees just the prefix ending at SEP and emits all K_mem answer
+    tokens in one forward pass via ``target_logits``.
+    """
+    if cfg.K_mem > model.config.direct_target_max_len:
+        raise ValueError(
+            f"K_mem={cfg.K_mem} exceeds direct_target_max_len="
+            f"{model.config.direct_target_max_len}"
+        )
+    if freeze_backbone:
+        freeze_backbone_for_direct_target(model)
+
+    model.train()
+    params = [p for p in model.parameters() if p.requires_grad]
+    opt = torch.optim.AdamW(params, lr=lr, betas=(0.9, 0.95))
+
+    history = []
+    for step in range(steps):
+        ids, _ = make_selective_copy_batch(cfg, cfg.batch, device=device)
+        prefix = ids[:, : cfg.T_noise + 1]
+        targets = ids[:, cfg.T_noise + 1: cfg.T_noise + 1 + cfg.K_mem]
+
+        opt.zero_grad(set_to_none=True)
+        out = model(
+            prefix,
+            direct_target_labels=targets,
+            target_len=cfg.K_mem,
+            return_target_logits=True,
+        )
+        out["target_loss"].backward()
+        torch.nn.utils.clip_grad_norm_(params, 1.0)
+        opt.step()
+
+        if (step + 1) % cfg.log_every == 0 or step == 0 or step + 1 == steps:
+            with torch.no_grad():
+                preds = out["target_logits"].argmax(dim=-1)
+                tok_acc = (preds == targets).float().mean()
+                seq_acc = (preds == targets).all(dim=-1).float().mean()
+            history.append((step + 1, out["target_loss"].item(), tok_acc.item(), seq_acc.item()))
+            if verbose:
+                print(f"  target step {step+1:5d}  loss {out['target_loss'].item():.4f}  "
+                      f"tok_acc {tok_acc.item():.3f}  seq_acc {seq_acc.item():.3f}")
+
+    return history
+
+
+@torch.no_grad()
+def evaluate_direct_selective_copy(model, cfg: SelectiveCopyConfig, device: str = "cpu",
+                                   n_batches: int = None) -> dict:
+    """
+    Direct Selective Copy evaluation: one prefix forward, no generated tokens.
+    """
+    model.eval()
+    n_batches = n_batches or cfg.eval_batches
+
+    tot_correct_tok = 0
+    tot_tok = 0
+    tot_correct_seq = 0
+    tot_seq = 0
+
+    for _ in range(n_batches):
+        ids, _ = make_selective_copy_batch(cfg, cfg.batch, device=device)
+        prefix = ids[:, : cfg.T_noise + 1]
+        true_tokens = ids[:, cfg.T_noise + 1: cfg.T_noise + 1 + cfg.K_mem]
+
+        out = model(prefix, target_len=cfg.K_mem, return_target_logits=True)
+        preds = out["target_logits"].argmax(dim=-1)
+
+        tot_correct_tok += (preds == true_tokens).sum().item()
+        tot_tok += preds.numel()
+        tot_correct_seq += (preds == true_tokens).all(dim=-1).sum().item()
+        tot_seq += preds.shape[0]
+
+    return {
+        "token_accuracy": tot_correct_tok / max(tot_tok, 1),
+        "sequence_exact": tot_correct_seq / max(tot_seq, 1),
+        "n_sequences": tot_seq,
+        "K_mem": cfg.K_mem,
+        "T_noise": cfg.T_noise,
+        "decode_steps": 0,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Evaluation (greedy decoding)
 # ---------------------------------------------------------------------------
 

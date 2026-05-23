@@ -69,6 +69,8 @@ def test_gradient_flow():
 
     dead, exploding = [], []
     for name, p in model.named_parameters():
+        if name.startswith("target_"):
+            continue
         if p.grad is None:
             dead.append(name)
         elif not p.grad.isfinite().all():
@@ -76,6 +78,27 @@ def test_gradient_flow():
     assert not dead, f"Dead gradients: {dead}"
     assert not exploding, f"Exploding gradients: {exploding}"
     print(f"[ok] test_gradient_flow ({sum(1 for _ in model.parameters())} params, all finite)")
+
+
+def test_direct_target_head_shapes_and_loss():
+    cfg = small_config()
+    model = MTLNNModel(cfg).train()
+
+    ids = torch.randint(0, cfg.vocab_size, (2, 16))
+    targets = torch.randint(0, cfg.vocab_size, (2, 4))
+    out = model(
+        ids,
+        direct_target_labels=targets,
+        target_len=4,
+        return_target_logits=True,
+    )
+
+    assert out["target_logits"].shape == (2, 4, cfg.vocab_size)
+    assert out["target_loss"].dim() == 0 and out["target_loss"].item() > 0
+    out["target_loss"].backward()
+    assert model.target_head.weight.grad is not None
+    assert model.target_queries.grad is not None
+    print("[ok] test_direct_target_head_shapes_and_loss")
 
 
 # ---------------------------------------------------------------------------
@@ -585,6 +608,27 @@ def test_mt_diagnostics():
     print("[ok] test_mt_diagnostics")
 
 
+def test_dynamic_scale_gate_diagnostics():
+    cfg = small_config()
+    cfg.dynamic_scale_gates = True
+    cfg.scale_gate_skip_threshold = 0.0
+    model = MTLNNModel(cfg).eval()
+
+    ids = torch.randint(0, cfg.vocab_size, (2, 8))
+    with torch.no_grad():
+        out = model(ids)
+
+    diag = model.get_mt_diagnostics()
+    assert out["logits"].shape == (2, 8, cfg.vocab_size)
+    assert "scale_gate_mean" in diag
+    assert "scale_gate_active_ratio" in diag
+    assert "scale_gate_nonzero_ratio" in diag
+    assert 0.0 <= diag["scale_gate_mean"] <= 1.0
+    assert 0.0 <= diag["scale_gate_active_ratio"] <= 1.0
+    assert 0.0 <= diag["scale_gate_nonzero_ratio"] <= 1.0
+    print("[ok] test_dynamic_scale_gate_diagnostics")
+
+
 # ---------------------------------------------------------------------------
 # Runner
 # ---------------------------------------------------------------------------
@@ -595,12 +639,14 @@ def run_all():
     print("=" * 60)
     test_shapes_and_loss()
     test_gradient_flow()
+    test_direct_target_head_shapes_and_loss()
     test_kv_cache_parity()
     test_pscan_cache_parity_with_recurrence()
     test_lnn_recurrence_active()
     test_prefill_then_decode()
     test_gqa_kv_cache_size()
     test_mt_diagnostics()
+    test_dynamic_scale_gate_diagnostics()
     test_low_rank_polarity()
     test_nearest_neighbor_coupling()
     test_gwtb_bottleneck()

@@ -13,6 +13,7 @@ warnings.filterwarnings("ignore", message=".*Tensor Cores.*", category=RuntimeWa
 
 from mt_lnn import MTLNNConfig, MTLNNModel, ModelCacheStruct, SessionMemory
 from mt_lnn.memory import _tensors_to_bytes, _bytes_to_tensors
+from mt_lnn.streaming import streaming_inference
 
 
 def small_cfg():
@@ -188,6 +189,64 @@ def test_model_save_load_state(tmp_path):
 
     assert restored is not None
     assert len(restored.layers) == cfg.n_layers
+
+
+def test_state_only_streaming_cache_stays_constant():
+    cfg = small_cfg()
+    model = MTLNNModel(cfg)
+    model.eval()
+
+    cache = None
+    sizes = []
+    for _ in range(cfg.max_seq_len + 8):
+        tok = torch.randint(0, cfg.vocab_size, (1, 1))
+        logits, cache = streaming_inference(model, tok, cache, state_only=True)
+        assert logits.shape == (1, 1, cfg.vocab_size)
+        sizes.append(cache.tensor_bytes())
+
+        for layer_cache in cache.layers:
+            assert layer_cache[0] is None
+            assert layer_cache[1] is not None
+            assert layer_cache[2] is None
+        assert cache.gwtb_kv is None
+        assert cache.coherence_kv is None
+
+    assert cache.token_count == cfg.max_seq_len + 8
+    assert len(set(sizes[1:])) == 1
+
+
+def test_state_only_session_resume_with_token_count(tmp_path):
+    cfg = small_cfg()
+    model = MTLNNModel(cfg)
+    model.eval()
+
+    cache = None
+    for _ in range(5):
+        tok = torch.randint(0, cfg.vocab_size, (1, 1))
+        _, cache = streaming_inference(model, tok, cache, state_only=True)
+
+    db = str(tmp_path / "state_only.db")
+    model.save_state("stream", cache, token_count=cache.token_count, db_path=db)
+
+    with SessionMemory(db) as mem:
+        h_states = mem.load("stream")
+        info = mem.session_info("stream")
+        restored = mem.restore_cache(h_states)
+        restored.token_count = info["token_count"]
+
+    assert restored.token_count == 5
+    logits, resumed = streaming_inference(
+        model,
+        torch.randint(0, cfg.vocab_size, (1, 1)),
+        restored,
+        state_only=True,
+    )
+    assert logits.shape == (1, 1, cfg.vocab_size)
+    assert resumed.token_count == 6
+    for layer_cache in resumed.layers:
+        assert layer_cache[0] is None
+        assert layer_cache[1] is not None
+        assert layer_cache[2] is None
 
 
 if __name__ == "__main__":

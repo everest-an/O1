@@ -37,10 +37,43 @@ LayerCache = Tuple[
 
 class ModelCacheStruct:
     """Full inference cache for incremental decoding."""
-    def __init__(self):
+    def __init__(self, token_count: int = 0):
         self.layers: List[LayerCache] = []
         self.gwtb_kv: Optional[KVCache] = None
         self.coherence_kv: Optional[KVCache] = None
+        self.token_count = token_count
+
+    def recurrent_only(self) -> "ModelCacheStruct":
+        """Return a constant-size cache that preserves only LNN h_prev states."""
+        out = ModelCacheStruct(token_count=self.token_count)
+        for layer_cache in self.layers:
+            h_prev = layer_cache[1] if layer_cache is not None and len(layer_cache) > 1 else None
+            out.layers.append((None, h_prev, None))
+        return out
+
+    def tensor_bytes(self) -> int:
+        """Approximate bytes held by tensors inside this cache."""
+        total = 0
+
+        def add_tensor(t: Optional[torch.Tensor]) -> None:
+            nonlocal total
+            if t is not None:
+                total += t.numel() * t.element_size()
+
+        def add_kv(kv: Optional[KVCache]) -> None:
+            if kv is not None:
+                add_tensor(kv[0])
+                add_tensor(kv[1])
+
+        for layer_cache in self.layers:
+            if layer_cache is None:
+                continue
+            add_kv(layer_cache[0])
+            add_tensor(layer_cache[1])
+            add_kv(layer_cache[2])
+        add_kv(self.gwtb_kv)
+        add_kv(self.coherence_kv)
+        return total
 
 
 class MTLNNBlock(nn.Module):
@@ -156,8 +189,23 @@ class MTLNNModel(nn.Module):
         if config.tie_embeddings:
             self.lm_head.weight = self.embedding.token_embed.weight
 
+        # Auxiliary direct-extraction head. It maps the final prefix state into
+        # fixed target slots, so extraction tasks can skip autoregressive decode.
+        self.target_queries = nn.Parameter(
+            torch.zeros(config.direct_target_max_len, config.d_model)
+        )
+        self.target_norm = nn.LayerNorm(config.d_model)
+        self.target_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+        
+        # Phase 2 & 3: Causal Chain and Self-Monitor Heads
+        if getattr(config, "use_causal_head", False):
+            self.causal_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+        if getattr(config, "use_self_monitor_head", False):
+            self.self_monitor_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+
         # Weight initialisation
         self.apply(lambda m: init_weights(m, config))
+        nn.init.normal_(self.target_queries, mean=0.0, std=0.02)
         init_mt_params(self, config)
 
     # ------------------------------------------------------------------
@@ -170,6 +218,9 @@ class MTLNNModel(nn.Module):
         cache: Optional[ModelCacheStruct] = None,
         pad_mask: Optional[torch.Tensor] = None,              # (B, T_total) bool
         labels: Optional[torch.Tensor] = None,                # (B, T_new) for causal LM loss
+        direct_target_labels: Optional[torch.Tensor] = None,  # (B, L) for direct extraction
+        target_len: Optional[int] = None,
+        return_target_logits: bool = False,
         use_cache: bool = False,
         position_offset: Optional[int] = None,
         use_lnn_recurrence: bool = True,
@@ -185,7 +236,9 @@ class MTLNNModel(nn.Module):
 
         Returns dict with keys:
           - logits:   (B, T_new, vocab_size)
+          - target_logits: (B, L, vocab_size) if direct extraction is requested
           - loss:     scalar (only if labels provided)
+          - target_loss: scalar (only if direct_target_labels provided)
           - cache:    new ModelCacheStruct (only if use_cache=True)
         """
         # Infer absolute position offset
@@ -198,7 +251,9 @@ class MTLNNModel(nn.Module):
 
         x = self.embedding(input_ids)                         # (B, T_new, d_model)
 
-        new_cache = ModelCacheStruct() if use_cache else None
+        new_cache = ModelCacheStruct(
+            token_count=position_offset + input_ids.shape[1]
+        ) if use_cache else None
         for i, block in enumerate(self.blocks):
             layer_cache = (cache.layers[i] if (cache is not None and i < len(cache.layers)) else None)
             x, new_layer_cache = block(
@@ -236,6 +291,39 @@ class MTLNNModel(nn.Module):
         if use_cache:
             result["cache"] = new_cache
 
+        if direct_target_labels is not None:
+            target_len = direct_target_labels.shape[1]
+            return_target_logits = True
+
+        if return_target_logits:
+            if target_len is None:
+                target_len = self.config.direct_target_max_len
+            if target_len < 1 or target_len > self.config.direct_target_max_len:
+                raise ValueError(
+                    f"target_len must be in [1, {self.config.direct_target_max_len}], "
+                    f"got {target_len}"
+                )
+
+            global_state = x[:, -1:, :]                        # (B, 1, d_model)
+            queries = self.target_queries[:target_len].unsqueeze(0)
+            target_hidden = self.target_norm(global_state + queries)
+            target_logits = self.target_head(target_hidden)     # (B, L, vocab_size)
+            result["target_logits"] = target_logits
+
+            if direct_target_labels is not None:
+                target_loss = F.cross_entropy(
+                    target_logits.reshape(-1, self.config.vocab_size),
+                    direct_target_labels.reshape(-1),
+                    ignore_index=-100,
+                )
+                result["target_loss"] = target_loss
+
+        # Phase 2 & 3 outputs
+        if getattr(self.config, "use_causal_head", False):
+            result["causal_logits"] = self.causal_head(x[:, -1:, :])
+        if getattr(self.config, "use_self_monitor_head", False):
+            result["self_monitor_logits"] = self.self_monitor_head(x[:, -1:, :])
+
         if labels is not None:
             shift_logits = logits[:, :-1, :].contiguous()
             shift_labels = labels[:, 1:].contiguous()
@@ -244,6 +332,12 @@ class MTLNNModel(nn.Module):
                 shift_labels.view(-1),
                 ignore_index=-100,
             )
+            
+            if getattr(self.config, "use_predictive_coding", False):
+                pred_error_sum = sum(b.lnn.resonance.last_pred_error for b in self.blocks)
+                result["pred_loss"] = pred_error_sum
+                loss = loss + self.config.predictive_loss_weight * pred_error_sum
+
             result["loss"] = loss
 
         return result
@@ -267,6 +361,7 @@ class MTLNNModel(nn.Module):
         diag: Dict[str, float] = {}
         tau_vals, gamma_vals, pol_vals = [], [], []
         lat_norms, rmc_gates = [], []
+        scale_gate_means, active_scale_ratios, nonzero_scale_ratios = [], [], []
 
         for block in self.blocks:
             # τ tensor for this block's resonance bank: shape (P, S)
@@ -281,6 +376,11 @@ class MTLNNModel(nn.Module):
             off_diag = W - torch.eye(W.shape[0], device=W.device)
             lat_norms.append(off_diag.norm().item())
             rmc_gates.append(torch.sigmoid(block.lnn.lateral.rmc_gate).item())
+            resonance = block.lnn.resonance
+            if hasattr(resonance, "last_scale_gate_mean"):
+                scale_gate_means.append(resonance.last_scale_gate_mean.detach().cpu())
+                active_scale_ratios.append(float(resonance.last_active_scale_ratio.item()))
+                nonzero_scale_ratios.append(float(resonance.last_nonzero_scale_ratio.item()))
 
         if tau_vals:
             t = torch.tensor(tau_vals)
@@ -298,6 +398,13 @@ class MTLNNModel(nn.Module):
             diag["lat_coupling_mean_off_diag_norm"] = sum(lat_norms) / len(lat_norms)
         if rmc_gates:
             diag["rmc_gate_mean"] = sum(rmc_gates) / len(rmc_gates)
+        if scale_gate_means:
+            gate_mean = torch.stack(scale_gate_means).mean(dim=0)
+            diag["scale_gate_mean"] = gate_mean.mean().item()
+            diag["scale_gate_active_ratio"] = sum(active_scale_ratios) / len(active_scale_ratios)
+            diag["scale_gate_nonzero_ratio"] = sum(nonzero_scale_ratios) / len(nonzero_scale_ratios)
+            for idx, value in enumerate(gate_mean.tolist()):
+                diag[f"scale_gate_s{idx}_mean"] = float(value)
 
         diag["coherence_scale"] = self.coherence.coherence_scale.item()
         diag["collapse_threshold"] = self.coherence.collapse_threshold.item()

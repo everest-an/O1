@@ -52,11 +52,16 @@ class VectorizedMultiScaleResonance(nn.Module):
         self.tau_min = config.tau_min
         self.tau_max = config.tau_max
         self.dt = config.dt
+        self.dynamic_scale_gates = getattr(config, "dynamic_scale_gates", True)
+        self.scale_gate_active_threshold = getattr(config, "scale_gate_active_threshold", 0.5)
+        self.scale_gate_skip_threshold = getattr(config, "scale_gate_skip_threshold", 0.0)
 
         # Shared weights: (P, S, D, D) — independent W_in per (proto, scale)
         self.W_in = nn.Parameter(torch.empty(P, S, D, D))
         self.b_in = nn.Parameter(torch.zeros(P, S, D))
         nn.init.normal_(self.W_in, mean=0.0, std=0.02)
+
+        self.compute_skip_threshold = getattr(config, "compute_skip_threshold", 0.0)
 
         # log_tau in raw space (softplus-parameterised); shape (P, S).
         # Init from config.resonance_freqs so each scale starts at a different τ.
@@ -66,8 +71,27 @@ class VectorizedMultiScaleResonance(nn.Module):
             log_tau_init[:, s] = v
         self.log_tau = nn.Parameter(log_tau_init)
 
-        # blend_weights: (P, S) — softmax → uniform at init
+        # blend_weights: (P, S) — statically balances the default scale mixture
         self.blend_weights = nn.Parameter(torch.zeros(P, S))
+        
+        # Endogenous Dynamic Kappa Gate: dynamically activates tau channels
+        # based on input. Initialized open so channels are not dead at startup.
+        if self.dynamic_scale_gates:
+            self.kappa_gate = nn.Linear(D, S)
+            nn.init.constant_(
+                self.kappa_gate.bias,
+                getattr(config, "scale_gate_init_bias", 2.0),
+            )
+        self.register_buffer("last_scale_gate_mean", torch.ones(S), persistent=False)
+        self.register_buffer("last_active_scale_ratio", torch.ones(()), persistent=False)
+        self.register_buffer("last_nonzero_scale_ratio", torch.ones(()), persistent=False)
+        
+        self.use_predictive_coding = getattr(config, "use_predictive_coding", False)
+        if self.use_predictive_coding and S > 1:
+            # Predict faster channel (s-1) from slower channel (s)
+            self.W_pred = nn.Parameter(torch.empty(P, S-1, D, D))
+            nn.init.normal_(self.W_pred, mean=0.0, std=0.02)
+        self.register_buffer("last_pred_error", torch.zeros(()), persistent=False)
 
     def forward(self, x: torch.Tensor, h_prev: torch.Tensor,
                 use_scan: bool = True):
@@ -140,10 +164,55 @@ class VectorizedMultiScaleResonance(nn.Module):
             H = pscan_constant_A(decay_bps, X, h_init=h_init)          # (B,P,S,T,D)
             h_per_scale = H.permute(0, 3, 1, 2, 4)                     # (B,T,P,S,D)
 
-        # 3. Blend across scales with softmax(blend_weights)
+        # 3. Dynamic Channel Attention (Endogenous Anesthesia) + Blending
         w = F.softmax(self.blend_weights, dim=-1)                     # (P,S)
-        w_b = w.view(1, 1, P, S, 1)                                    # (1,1,P,S,1)
-        out = (h_per_scale * w_b).sum(dim=3)                          # (B,T,P,D)
+        if self.dynamic_scale_gates:
+            # Dynamic Kappa: (B,T,P,S) - input-dependent channel activation.
+            dynamic_kappa = torch.sigmoid(self.kappa_gate(x))         # (B,T,P,S)
+
+            # Optional hard masking placeholder. This masks the blend only; it
+            # does not yet skip the upstream resonance computation.
+            skip_threshold = max(self.compute_skip_threshold, self.scale_gate_skip_threshold)
+            if skip_threshold > 0.0:
+                active = dynamic_kappa >= skip_threshold
+                top_idx = dynamic_kappa.argmax(dim=-1, keepdim=True)
+                top_one_hot = torch.zeros_like(dynamic_kappa, dtype=torch.bool)
+                top_one_hot.scatter_(-1, top_idx, True)
+                active = active | top_one_hot
+                dynamic_kappa = dynamic_kappa.masked_fill(~active, 0.0)
+
+            gated_w = w.view(1, 1, P, S) * dynamic_kappa
+            gated_w = gated_w / gated_w.sum(dim=-1, keepdim=True).clamp_min(1e-6)
+
+            with torch.no_grad():
+                self.last_scale_gate_mean = dynamic_kappa.detach().mean(dim=(0, 1, 2))
+                self.last_active_scale_ratio = (
+                    dynamic_kappa.detach() > self.scale_gate_active_threshold
+                ).float().mean()
+                self.last_nonzero_scale_ratio = (
+                    dynamic_kappa.detach() > 0.0
+                ).float().mean()
+        else:
+            gated_w = w.view(1, 1, P, S).expand(B, T, P, S)
+            with torch.no_grad():
+                self.last_scale_gate_mean = torch.ones(S, device=x.device, dtype=x.dtype)
+                self.last_active_scale_ratio = torch.ones((), device=x.device, dtype=x.dtype)
+                self.last_nonzero_scale_ratio = torch.ones((), device=x.device, dtype=x.dtype)
+
+        out = (h_per_scale * gated_w.unsqueeze(-1)).sum(dim=3)        # (B,T,P,D)
+
+        # 4. Multi-Scale Predictive Coding Loss
+        if self.use_predictive_coding and self.S > 1:
+            if self.training:
+                # Predict faster channel (idx :-1) from slower channel (idx 1:)
+                predictor = h_per_scale[:, :, :, 1:, :]                     # (B,T,P,S-1,D)
+                target = h_per_scale[:, :, :, :-1, :].detach()              # (B,T,P,S-1,D)
+                pred = torch.einsum("btpse,psed->btpsd", predictor, self.W_pred) 
+                
+                # mse loss of prediction vs target
+                self.last_pred_error = F.mse_loss(pred, target)
+            else:
+                self.last_pred_error.zero_()
 
         # Per-scale last state for caching — preserves the scan's internal
         # state across calls without going through the blend.

@@ -26,7 +26,8 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 
-from mt_lnn import MTLNNConfig, MTLNNModel
+from mt_lnn import MTLNNConfig, MTLNNModel, SessionMemory
+from mt_lnn.streaming import prefill_state_only, streaming_inference
 from mt_lnn.utils import load_checkpoint
 
 
@@ -90,6 +91,9 @@ def generate_streaming(
     top_p: float = 0.9,
     eos_token_id: Optional[int] = None,
     print_prompt: bool = True,
+    state_only: bool = False,
+    initial_cache=None,
+    return_cache: bool = False,
 ) -> torch.Tensor:
     """
     Streams generated tokens to stdout the moment each is produced.
@@ -100,15 +104,19 @@ def generate_streaming(
         prompt_text = tokenizer.decode(input_ids[0].tolist(), skip_special_tokens=True)
         print(prompt_text, end="", flush=True)
 
-    # 1. Prefill
-    out = model(input_ids, use_cache=True)
-    cache = out["cache"]
-    logits = out["logits"][:, -1, :]
+    # 1. Prefill. Normal mode keeps full KV history; state-only mode consumes
+    # tokens one at a time and keeps only recurrent h_prev.
+    if state_only:
+        logits, cache = prefill_state_only(model, input_ids, cache=initial_cache)
+    else:
+        out = model(input_ids, use_cache=True)
+        cache = out["cache"]
+        logits = out["logits"][:, -1:, :]
     generated = input_ids.clone()
 
     # 2. Stream
     for _ in range(max_new_tokens):
-        next_tok = sample_next(logits, temperature, top_k, top_p)   # (1, 1)
+        next_tok = sample_next(logits[:, -1, :], temperature, top_k, top_p)   # (1, 1)
         token_text = tokenizer.decode(next_tok[0].tolist(), skip_special_tokens=True)
         print(token_text, end="", flush=True)
         generated = torch.cat([generated, next_tok], dim=1)
@@ -116,12 +124,34 @@ def generate_streaming(
         if eos_token_id is not None and next_tok.item() == eos_token_id:
             break
 
-        out = model(next_tok, cache=cache, use_cache=True)
-        cache = out["cache"]
-        logits = out["logits"][:, -1, :]
+        if state_only:
+            logits, cache = streaming_inference(model, next_tok, cache, state_only=True)
+        else:
+            out = model(next_tok, cache=cache, use_cache=True)
+            cache = out["cache"]
+            logits = out["logits"][:, -1:, :]
 
     print()      # final newline
+    if return_cache:
+        return generated, cache
     return generated
+
+
+@torch.no_grad()
+def direct_target_extract(
+    model: MTLNNModel,
+    input_ids: torch.Tensor,
+    tokenizer,
+    target_len: int,
+) -> torch.Tensor:
+    """Print one-shot direct target predictions for a prompt."""
+    out = model(input_ids, target_len=target_len, return_target_logits=True)
+    preds = out["target_logits"].argmax(dim=-1)                       # (1, L)
+    print("\n[direct target]")
+    for idx, tok in enumerate(preds[0].tolist()):
+        text = tokenizer.decode([tok], skip_special_tokens=True)
+        print(f"  slot {idx:02d}: token={tok} text={text!r}")
+    return preds
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +159,7 @@ def generate_streaming(
 # ---------------------------------------------------------------------------
 
 def check_compat(model: MTLNNModel, config: MTLNNConfig, tokenizer,
-                  prompt_len: int, max_new_tokens: int):
+                  prompt_len: int, max_new_tokens: int, state_only: bool = False):
     # 1. Tokenizer vocab matches model
     if tokenizer.vocab_size != config.vocab_size:
         print(f"\nERROR: tokenizer vocab_size ({tokenizer.vocab_size}) "
@@ -138,7 +168,7 @@ def check_compat(model: MTLNNModel, config: MTLNNConfig, tokenizer,
         sys.exit(1)
 
     # 2. RoPE table long enough
-    total_len = prompt_len + max_new_tokens
+    total_len = 1 if state_only else prompt_len + max_new_tokens
     rope_max = model.embedding.rope.cos_table.shape[0]
     if total_len > rope_max:
         print(f"\nERROR: prompt+max_new_tokens={total_len} exceeds RoPE "
@@ -176,18 +206,49 @@ def main(args):
     tok = AutoTokenizer.from_pretrained(args.tokenizer)
     eos_id = tok.eos_token_id
 
+    session_cache = None
+    if args.session_id:
+        if not args.state_only:
+            print("ERROR: --session_id requires --state_only because only h_prev is persisted.")
+            sys.exit(1)
+        with SessionMemory(args.state_db) as mem:
+            h_states = mem.load(args.session_id, device=device)
+            info = mem.session_info(args.session_id)
+            if h_states is not None:
+                session_cache = mem.restore_cache(h_states)
+                session_cache.token_count = info["token_count"] if info is not None else 0
+                print(f"Loaded state session '{args.session_id}' at token_count={session_cache.token_count}.")
+            else:
+                print(f"Starting new state session '{args.session_id}'.")
+
     def run(prompt: str):
+        nonlocal session_cache
         ids = torch.tensor([tok.encode(prompt)], dtype=torch.long, device=device)
-        check_compat(model, config, tok, ids.shape[1], args.max_tokens)
+        check_compat(model, config, tok, ids.shape[1], args.max_tokens, args.state_only)
+        if args.direct_target_len > 0:
+            direct_target_extract(model, ids, tok, args.direct_target_len)
+            return
+
         print()         # blank line before generation
-        generate_streaming(
+        generated, session_cache = generate_streaming(
             model, ids, tok,
             max_new_tokens=args.max_tokens,
             temperature=args.temperature,
             top_k=args.top_k,
             top_p=args.top_p,
             eos_token_id=eos_id,
+            state_only=args.state_only,
+            initial_cache=session_cache,
+            return_cache=True,
         )
+        if args.session_id:
+            model.save_state(
+                args.session_id,
+                session_cache,
+                token_count=session_cache.token_count,
+                db_path=args.state_db,
+            )
+            print(f"[state saved: {args.session_id}, token_count={session_cache.token_count}]")
 
     if args.interactive:
         print("Interactive mode — Ctrl-C to exit.")
@@ -215,4 +276,12 @@ if __name__ == "__main__":
                                        help="Nucleus sampling. 1.0 = disabled")
     p.add_argument("--tokenizer",   default="gpt2")
     p.add_argument("--interactive", action="store_true")
+    p.add_argument("--state_only",  action="store_true",
+                   help="Use recurrent h_prev only; drop historical KV after each token")
+    p.add_argument("--session_id",  default=None,
+                   help="State-only session id for loading/saving recurrent h_prev")
+    p.add_argument("--state_db",    default=".mt_lnn_state.db",
+                   help="SQLite path for --session_id state persistence")
+    p.add_argument("--direct_target_len", type=int, default=0,
+                   help="If >0, run one-shot direct target extraction instead of generation")
     main(p.parse_args())

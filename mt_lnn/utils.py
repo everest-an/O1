@@ -59,6 +59,10 @@ def init_mt_params(model: nn.Module, config) -> None:
             nn.init.constant_(param, 0.5)
         elif name.endswith("blend_weights"):
             nn.init.zeros_(param)               # softmax(zeros) = uniform
+        elif name.endswith("kappa_gate.weight"):
+            nn.init.normal_(param, mean=0.0, std=0.02)
+        elif name.endswith("kappa_gate.bias"):
+            nn.init.constant_(param, getattr(config, "scale_gate_init_bias", 2.0))
         elif name.endswith("gtp_gamma"):
             # In MicrotubuleAttention this is in raw (softplus⁻¹) space → keep ctor init.
             # In MTLNNLayer this is in real space → re-set to a small positive value.
@@ -162,7 +166,11 @@ def load_checkpoint(
     optimizer: Optional[torch.optim.Optimizer] = None,
 ) -> Dict:
     ckpt = torch.load(path, map_location="cpu")
-    model.load_state_dict(ckpt["model_state"])
+    missing, unexpected = model.load_state_dict(ckpt["model_state"], strict=False)
+    if missing:
+        print(f"[checkpoint] missing keys initialised from model defaults: {missing}")
+    if unexpected:
+        print(f"[checkpoint] unexpected keys ignored: {unexpected}")
     if optimizer is not None:
         optimizer.load_state_dict(ckpt["optimizer_state"])
     return ckpt
