@@ -1,0 +1,164 @@
+{
+  "benchmark": "sparse_resonance_ablation",
+  "device": "cpu",
+  "torch": "2.5.1+cu121",
+  "config": {
+    "vocab_size": 128,
+    "max_seq_len": 128,
+    "pad_token_id": 0,
+    "d_model": 104,
+    "n_layers": 2,
+    "n_heads": 4,
+    "n_kv_heads": 2,
+    "d_head": 26,
+    "n_protofilaments": 13,
+    "map_hidden_dim": 64,
+    "tau_init": 1.0,
+    "tau_min": 0.01,
+    "tau_max": 10.0,
+    "dt": 1.0,
+    "polarity_mode": "scalar",
+    "polarity_rank": 8,
+    "gamma_init": 0.1,
+    "gtp_period": 256,
+    "n_time_scales": 5,
+    "resonance_freqs": [
+      0.01,
+      0.05623413251903491,
+      0.31622776601683794,
+      1.7782794100389228,
+      10.0
+    ],
+    "gwtb_compression_ratio": 4,
+    "gwtb_n_heads": 2,
+    "gwtb_broadcast_init": 0.01,
+    "gwtb_per_block": false,
+    "coherence_sparsity": 0.1,
+    "coherence_heads": 2,
+    "use_decay_wm": true,
+    "wm_decay_rate_init": 0.99,
+    "compute_skip_threshold": 0.0,
+    "dropout": 0.0,
+    "attention_dropout": 0.0,
+    "tie_embeddings": true,
+    "use_predictive_coding": true,
+    "predictive_loss_weight": 0.05,
+    "direct_target_max_len": 16,
+    "use_causal_head": false,
+    "use_self_monitor_head": false,
+    "dynamic_scale_gates": true,
+    "scale_gate_init_bias": 2.0,
+    "scale_gate_active_threshold": 0.5,
+    "scale_gate_skip_threshold": 0.0,
+    "sparse_resonance_kernel": false,
+    "sparse_resonance_top_k": 1,
+    "d_proto": 8,
+    "d_proto_total": 104
+  },
+  "runs": [
+    {
+      "mode": "dense",
+      "top_k": 5,
+      "elapsed_s": 0.027323100000103295,
+      "tokens_per_s": 3659.9068187585576,
+      "diagnostics": {
+        "scale_gate_mean": 0.8806971311569214,
+        "scale_gate_active_ratio": 1.0,
+        "scale_gate_nonzero_ratio": 1.0,
+        "sparse_resonance_scale_ratio": 1.0,
+        "scale_gate_s0_mean": 0.8807753324508667,
+        "scale_gate_s1_mean": 0.8805086612701416,
+        "scale_gate_s2_mean": 0.8808428049087524,
+        "scale_gate_s3_mean": 0.8806242942810059,
+        "scale_gate_s4_mean": 0.8807346820831299,
+        "sparse_resonance_s0_selected": 1.0,
+        "sparse_resonance_s1_selected": 1.0,
+        "sparse_resonance_s2_selected": 1.0,
+        "sparse_resonance_s3_selected": 1.0,
+        "sparse_resonance_s4_selected": 1.0
+      },
+      "divergence_vs_dense": {
+        "mean_abs": 0.0,
+        "max_abs": 0.0
+      }
+    },
+    {
+      "mode": "sparse",
+      "top_k": 1,
+      "elapsed_s": 0.01732720000018162,
+      "tokens_per_s": 5771.272911892967,
+      "diagnostics": {
+        "scale_gate_mean": 0.1761886328458786,
+        "scale_gate_active_ratio": 0.20000000298023224,
+        "scale_gate_nonzero_ratio": 0.20000000298023224,
+        "sparse_resonance_scale_ratio": 0.20000000298023224,
+        "scale_gate_s0_mean": 0.440439373254776,
+        "scale_gate_s1_mean": 0.0,
+        "scale_gate_s2_mean": 0.4405038356781006,
+        "scale_gate_s3_mean": 0.0,
+        "scale_gate_s4_mean": 0.0,
+        "sparse_resonance_s0_selected": 0.5,
+        "sparse_resonance_s1_selected": 0.0,
+        "sparse_resonance_s2_selected": 0.5,
+        "sparse_resonance_s3_selected": 0.0,
+        "sparse_resonance_s4_selected": 0.0
+      },
+      "divergence_vs_dense": {
+        "mean_abs": 0.002611427567899227,
+        "max_abs": 0.10660064220428467
+      }
+    },
+    {
+      "mode": "sparse",
+      "top_k": 2,
+      "elapsed_s": 0.015617900000052032,
+      "tokens_per_s": 6402.90948204732,
+      "diagnostics": {
+        "scale_gate_mean": 0.3523370921611786,
+        "scale_gate_active_ratio": 0.4000000059604645,
+        "scale_gate_nonzero_ratio": 0.4000000059604645,
+        "sparse_resonance_scale_ratio": 0.4000000059604645,
+        "scale_gate_s0_mean": 0.440439373254776,
+        "scale_gate_s1_mean": 0.0,
+        "scale_gate_s2_mean": 0.44050395488739014,
+        "scale_gate_s3_mean": 0.44039419293403625,
+        "scale_gate_s4_mean": 0.4403479993343353,
+        "sparse_resonance_s0_selected": 0.5,
+        "sparse_resonance_s1_selected": 0.0,
+        "sparse_resonance_s2_selected": 0.5,
+        "sparse_resonance_s3_selected": 0.5,
+        "sparse_resonance_s4_selected": 0.5
+      },
+      "divergence_vs_dense": {
+        "mean_abs": 0.0033082845620810986,
+        "max_abs": 0.07955850660800934
+      }
+    },
+    {
+      "mode": "sparse",
+      "top_k": 3,
+      "elapsed_s": 0.02055320000044958,
+      "tokens_per_s": 4865.422415867729,
+      "diagnostics": {
+        "scale_gate_mean": 0.5284810662269592,
+        "scale_gate_active_ratio": 0.6000000238418579,
+        "scale_gate_nonzero_ratio": 0.6000000238418579,
+        "sparse_resonance_scale_ratio": 0.6000000238418579,
+        "scale_gate_s0_mean": 0.880773663520813,
+        "scale_gate_s1_mean": 0.0,
+        "scale_gate_s2_mean": 0.4405016601085663,
+        "scale_gate_s3_mean": 0.44039419293403625,
+        "scale_gate_s4_mean": 0.8807357549667358,
+        "sparse_resonance_s0_selected": 1.0,
+        "sparse_resonance_s1_selected": 0.0,
+        "sparse_resonance_s2_selected": 0.5,
+        "sparse_resonance_s3_selected": 0.5,
+        "sparse_resonance_s4_selected": 1.0
+      },
+      "divergence_vs_dense": {
+        "mean_abs": 0.0017080685356631875,
+        "max_abs": 0.06989636272192001
+      }
+    }
+  ]
+}
