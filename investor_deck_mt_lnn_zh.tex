@@ -309,6 +309,28 @@
 \end{itemize}
 \end{frame}
 
+\begin{frame}{降维打击：比 Transformer 更快、更便宜、更精准}
+\begin{itemize}
+    \item \textbf{1. 极低的成本代价（$O(1)$ 边缘算力）：}
+    \begin{itemize}
+        \item \textbf{Transformer:} 1000 Token 对局下的 KV Cache 膨胀至 1020 KB。
+        \item \textbf{M1:} 核心隐状态 $h_{prev}$ 始终锁定在 \textbf{4.1 KB}。绝大部分日常推理在本地 CPU/NPU 免费完成，极大幅度地降低对昂贵云端算力的依赖。
+    \end{itemize}
+    \vspace{0.5em}
+    \item \textbf{2. 碾压级的长时记忆与精准度：}
+    \begin{itemize}
+        \item \textbf{Transformer:} 同等参数下，面对抗噪序列提取（大海捞针），其精准召回率暴跌至 \textbf{2.3\%}。
+        \item \textbf{M1:} 维持在 \textbf{96.5\%（提升42倍）}。基于自上而下的预测编码机制，脱离核心逻辑即刻由于高预测误差而“亮灯拦截”，从根源有效压制幻觉（Hallucination）。
+    \end{itemize}
+    \vspace{0.5em}
+    \item \textbf{3. 更快：零网络延迟与稀疏共振加速：}
+    \begin{itemize}
+        \item \textbf{免传输架构：} 彻底告别向云端来回重传数万前置历史 Token 的无谓网络延迟。
+        \item \textbf{Sparse Resonance（稀疏共振加速）：} 在纯 CPU 下，打开多时间尺度门控（Scale-gate）后，计算速度由 6528 Tok/s 瞬间提拉至 \textbf{7390 Tok/s}（加速 $\sim$13\%）。
+    \end{itemize}
+\end{itemize}
+\end{frame}
+
 \begin{frame}{核心应用场景与竞争力分析}
 \begin{itemize}
     \item \textbf{数据强敏感行业（如金融、法律、医疗）：} 

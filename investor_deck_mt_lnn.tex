@@ -252,6 +252,28 @@
 \end{itemize}
 \end{frame}
 
+\begin{frame}{Beyond Transformers: Faster, Cheaper, More Accurate}
+\begin{itemize}
+    \item \textbf{1. Extreme Cost Compression ($O(1)$ Memory):}
+    \begin{itemize}
+        \item \textbf{Transformer:} 1000-token KV Cache bloats to 1020 KB. Memory costs scale boundlessly.
+        \item \textbf{M1:} The Personal State Capsule strictly bounds $h_{prev}$ memory to \textbf{4.1 KB}, executing zero-cost inference via Edge CPU/NPU processors.
+    \end{itemize}
+    \vspace{0.5em}
+    \item \textbf{2. True Accuracy (Dynamic "Needle in a Haystack"):}
+    \begin{itemize}
+        \item \textbf{Transformer:} Selective Copy recovery decays rapidly to \textbf{2.3\%}.
+        \item \textbf{M1:} Sustains \textbf{96.5\%} accuracy (42x better). Biological Predictive Coding inherently suppresses Hallucinations via local consistency checks.
+    \end{itemize}
+    \vspace{0.5em}
+    \item \textbf{3. Speed (Zero-Latency \& Resonance):}
+    \begin{itemize}
+        \item \textbf{Zero Network Overhead:} Bypasses transmitting 100k+ history tokens to cloud API servers.
+        \item \textbf{Sparse Resonance Acceleration:} Activating microtubule scale-gates yields an immediate \textbf{13\% CPU processing speedup} (from 6528 to 7390 Tok/s).
+    \end{itemize}
+\end{itemize}
+\end{frame}
+
 \begin{frame}{Market Sizing (TAM/SAM/SOM)}
 \begin{itemize}
     \item \textbf{TAM (Total Addressable Market) - \$120B+:} The global generative AI and LLM inference market spanning cloud services, enterprise applications, and edge intelligence.
