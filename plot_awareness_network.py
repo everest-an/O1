@@ -29,9 +29,9 @@ db = patches.FancyBboxPatch((7.45, 4.3), 2.6, 0.7, boxstyle="round,pad=0.08", ec
 ax.add_patch(db)
 ax.text(8.75, 4.65, "Vector DB (Facts / RAG)", ha="center", va="center", fontsize=11, color=cloud_text)
 
-gemini = patches.FancyBboxPatch((7.45, 3.3), 2.6, 0.7, boxstyle="round,pad=0.08", ec=cloud_edge, fc=cloud_box, lw=1.5)
-ax.add_patch(gemini)
-ax.text(8.75, 3.65, "Gemini 3.1 / GPT-4o\n(LLM API)", ha="center", va="center", fontsize=11, color=cloud_text)
+cloud_model = patches.FancyBboxPatch((7.45, 3.3), 2.6, 0.7, boxstyle="round,pad=0.08", ec=cloud_edge, fc=cloud_box, lw=1.5)
+ax.add_patch(cloud_model)
+ax.text(8.75, 3.65, "Awareness Cloud\n(MT-LNN 70B+)", ha="center", va="center", fontsize=11, color=cloud_text)
 
 edge = patches.FancyBboxPatch((0.5, 0.5), 5.0, 5.0, boxstyle="round,pad=0.2", ec=edge_edge, fc=edge_color, alpha=0.9, lw=2)
 ax.add_patch(edge)
