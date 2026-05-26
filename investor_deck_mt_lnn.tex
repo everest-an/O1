@@ -294,6 +294,31 @@
 \end{itemize}
 \end{frame}
 
+\begin{frame}{Verifiable Benchmarks \& Open Reproducibility}
+\begin{itemize}
+    \item \textbf{1. Memory Compression Evidence (1000-token footprint)}
+    \begin{itemize}
+        \item \textbf{Data:} Transformer KV = 1020 KB v.s. MT-LNN = 4.1 KB.
+        \item \textbf{Meaning:} Enables continuous "always-on" AI on strictly limited edge devices without RAM bottlenecks (OOM).
+        \item \textbf{Reproduce Action:} Run \texttt{python benchmarks/operator\_compression\_report.py}.
+    \end{itemize}
+    \vspace{0.4em}
+    \item \textbf{2. Long-Context Accuracy Evidence ("Needle in a Haystack")}
+    \begin{itemize}
+        \item \textbf{Data:} In 200K parameter head-to-head, Transformer retrieval crashes to 2.3\% while MT-LNN sustains 96.5\% (a 42x advantage).
+        \item \textbf{Meaning:} Absolute fidelity for tracking user history, inherently suppressing hallucinations.
+        \item \textbf{Reproduce Action:} Run \texttt{python benchmarks/run\_benchmark.py}.
+    \end{itemize}
+    \vspace{0.4em}
+    \item \textbf{3. CPU Speed Evidence (Sparse Resonance)}
+    \begin{itemize}
+        \item \textbf{Data:} Dense processing at 6528 Tok/s jumps to 7390 Tok/s.
+        \item \textbf{Meaning:} Biologically-inspired "sleep" patterns skip redundant compute, slashing inference bills.
+        \item \textbf{Reproduce Action:} Run \texttt{python benchmarks/sparse\_resonance\_ablation.py}.
+    \end{itemize}
+\end{itemize}
+\end{frame}
+
 \begin{frame}{Market Sizing (TAM/SAM/SOM)}
 \begin{itemize}
     \item \textbf{TAM (Total Addressable Market) - \$120B+:} The global generative AI and LLM inference market spanning cloud services, enterprise applications, and edge intelligence.
