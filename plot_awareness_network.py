@@ -39,7 +39,7 @@ ax.text(3.0, 5.2, "Edge / Local Device (Air-gapped)", ha="center", va="center", 
 
 m1_panel = patches.FancyBboxPatch((0.8, 0.8), 4.4, 4.0, boxstyle="round,pad=0.1", ec=m1_edge, fc=edge_box, lw=1.5)
 ax.add_patch(m1_panel)
-ax.text(3.0, 4.5, "M1 (MT-LNN) Engine", ha="center", va="center", fontsize=12, fontweight='bold', color=edge_text)
+ax.text(3.0, 4.5, "AwareLiquid (MT-LNN) Engine", ha="center", va="center", fontsize=12, fontweight='bold', color=edge_text)
 
 capsule = patches.FancyBboxPatch((1.05, 3.4), 3.9, 0.75, boxstyle="round,pad=0.05", ec=m1_edge, fc=m1_box, lw=1.5)
 ax.add_patch(capsule)

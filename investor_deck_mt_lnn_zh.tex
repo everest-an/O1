@@ -167,7 +167,7 @@
 \textbf{状态流式算子压缩 (Operator Compression):}
 \begin{itemize}
     \item 摒弃传统 $O(T)$ 的庞大 KV 缓存，在流式推理时将上下文仅保留为循环隐状态 $h_{prev}$。
-    \item \textbf{测试数据：} 在 1000 Tokens 时，传统 KV 需要 1020 KB，而 M1 O(1) 状态模式仅需恒定的 \textbf{4.1 KB}。
+    \item \textbf{测试数据：} 在 1000 Tokens 时，传统 KV 需要 1020 KB，而 AwareLiquid O(1) 状态模式仅需恒定的 \textbf{4.1 KB}。
 \end{itemize}
 
 \vspace{0.5em}
@@ -217,36 +217,36 @@
 \end{itemize}
 \end{frame}
 
-\begin{frame}{从产品与商业化看 M1 的降维打击}
+\begin{frame}{从产品与商业化看 AwareLiquid 的降维打击}
 \begin{itemize}
-    \item \textbf{极低门槛（告别天价显卡）：} 无需 H800/A100 等昂贵硬件。得益于 $O(1)$ 算子压缩，M1 处理超长文本的缓存恒定在 \textbf{4.1 KB}。这使得百亿/千亿级别的模型能力，能被无缝下放到普通轻薄本、智能终端和局域网服务器中。
-    \item \textbf{算力降本（引擎的“智能启停”）：} 传统模型应对哪怕是一句简单问候都会拉满所有算力。M1 的\textbf{“稀疏共振”}机制允许系统在处理简单逻辑时瞬间休眠 80\% 的冗余计算通道，在没有专用加速卡的情况下仍实现 \textbf{13\%+} 的原生计算提速。
-    \item \textbf{长线体验（攻克“中间遗忘”痛点）：} 类似 Mamba 的传统线性模型随文本无限变长会不可避免地产生衰减。M1 通过底层的门控调度锁住信息，即便在极高噪声打断和 128K 超长闭环盲测中，依然实现了 $>99\%$ 的无死角提取精度。
-    \item \textbf{私有化落地（行业刚需避风港）：} 金融、法律和国家机构等对数据极端敏感领域无法将材料上传给云端 API。M1 由于对算力和内存的极低索求，成为完美契合局域网、可完全断网离线流式运作的 AI 强隐私解决方案。
+    \item \textbf{极低门槛（告别天价显卡）：} 无需 H800/A100 等昂贵硬件。得益于 $O(1)$ 算子压缩，AwareLiquid 处理超长文本的缓存恒定在 \textbf{4.1 KB}。这使得百亿/千亿级别的模型能力，能被无缝下放到普通轻薄本、智能终端和局域网服务器中。
+    \item \textbf{算力降本（引擎的“智能启停”）：} 传统模型应对哪怕是一句简单问候都会拉满所有算力。AwareLiquid 的\textbf{“稀疏共振”}机制允许系统在处理简单逻辑时瞬间休眠 80\% 的冗余计算通道，在没有专用加速卡的情况下仍实现 \textbf{13\%+} 的原生计算提速。
+    \item \textbf{长线体验（攻克“中间遗忘”痛点）：} 类似 Mamba 的传统线性模型随文本无限变长会不可避免地产生衰减。AwareLiquid 通过底层的门控调度锁住信息，即便在极高噪声打断和 128K 超长闭环盲测中，依然实现了 $>99\%$ 的无死角提取精度。
+    \item \textbf{私有化落地（行业刚需避风港）：} 金融、法律和国家机构等对数据极端敏感领域无法将材料上传给云端 API。AwareLiquid 由于对算力和内存的极低索求，成为完美契合局域网、可完全断网离线流式运作的 AI 强隐私解决方案。
 \end{itemize}
 \end{frame}
 
-\begin{frame}{硬核实测：M1 与主流同梯队架构的数据鸿沟}
+\begin{frame}{硬核实测：AwareLiquid 与主流同梯队架构的数据鸿沟}
 \begin{itemize}
-    \item 在同等参数（200K级别微型沙盒验证）的绝对公平盲测下，M1 展现出了令人惊悚的压制力：
+    \item 在同等参数（200K级别微型沙盒验证）的绝对公平盲测下，AwareLiquid 展现出了令人惊悚的压制力：
     \vspace{0.5em}
     \item \textbf{1. 长文极限抗干扰（$T=229$ 大海捞针盲测）：}
     \begin{itemize}
-        \item \textbf{M1 架构 (MT-LNN)：} 长序列事实的完全匹配率高达 \textbf{96.5\%}。
+        \item \textbf{AwareLiquid 架构 (MT-LNN)：} 长序列事实的完全匹配率高达 \textbf{96.5\%}。
         \item \textbf{标准 Transformer / 传统 LNN：} 仅为 \textbf{2.3\%}（基本等同于崩溃瞎猜）。
-        \item \textbf{[鸿沟]}：哪怕在显微镜级别测试下，M1 的强力信息锚定能力更是将传统架构甩开了足足 \textbf{42倍}。
+        \item \textbf{[鸿沟]}：哪怕在显微镜级别测试下，AwareLiquid 的强力信息锚定能力更是将传统架构甩开了足足 \textbf{42倍}。
     \end{itemize}
     \vspace{0.3em}
     \item \textbf{2. 内存运行极值压测（以 1000 Token 处理为例）：}
     \begin{itemize}
         \item \textbf{传统机制 (死记硬背 KV 叠砖)：} 堆叠至 1020.5 KB，呈灾难式线性膨胀。
-        \item \textbf{M1 架构 (只更新此刻的 $O(1)$ 状态)：} 内存死死钉在 \textbf{4.1 KB}（暴降 \textbf{99.6\%}）。
+        \item \textbf{AwareLiquid 架构 (只更新此刻的 $O(1)$ 状态)：} 内存死死钉在 \textbf{4.1 KB}（暴降 \textbf{99.6\%}）。
     \end{itemize}
     \vspace{0.3em}
     \item \textbf{3. CPU 裸机底层纯计算速度：}
     \begin{itemize}
         \item 传统无休眠满载狂飙：6528 Tok/s。
-        \item \textbf{M1 开启休眠模式 (Sparse Top-$k=1$)：} 骤升至 \textbf{7390 Tok/s}。单靠动态物理特性便拉升了超 \textbf{13\%} 的速度，且输出精度几乎不损耗。
+        \item \textbf{AwareLiquid 开启休眠模式 (Sparse Top-$k=1$)：} 骤升至 \textbf{7390 Tok/s}。单靠动态物理特性便拉升了超 \textbf{13\%} 的速度，且输出精度几乎不损耗。
     \end{itemize}
 \end{itemize}
 \end{frame}
@@ -292,8 +292,8 @@
     \vspace{0.4em}
     \item \textbf{我们的颠覆范式：本地类脑引擎 + 云端知识库}
     \begin{itemize}
-        \item \textbf{本地大脑 (Edge M1)：} 90\% 的逻辑推理、连续记忆和决策在本地设备通过轻量级 MT-LNN 完成，实现 \textbf{完全不用烧 Token 的 0 成本本地计算}。
-        \item \textbf{感知云端 (Awareness Cloud)：} 云端节点不再是高频算力黑洞，而是变成了一个基于大参数 MT-LNN 的纯粹“世界知识库”。
+        \item \textbf{本地大脑 (AwareLiquid)：} 90\% 的逻辑推理、连续记忆和决策在本地设备通过轻量级 MT-LNN 完成，实现 \textbf{完全不用烧 Token 的 0 成本本地计算}。
+        \item \textbf{Awareness Cloud：} 云端节点不再是高频算力黑洞，而是变成了一个基于大参数 MT-LNN 的纯粹“世界知识库”。
     \end{itemize}
     \vspace{0.4em}
     \item \textbf{商业现实：极轻量化调用知识} 
@@ -308,23 +308,23 @@
     \item \textbf{1. 闭眼暗中推演 (Latent Reasoning Loop)：}
     \begin{itemize}
         \item \textbf{云端巨头：} 靠疯狂吐出废话 Token 作为草稿纸（CoT）进行表面模型假思考。
-        \item \textbf{M1 架构：} 遇到难题通过隐层微分方程循环几十次“静默计算”。无冗长输出直接洞穿真理，呈现类人智者体验。
+        \item \textbf{AwareLiquid 架构：} 遇到难题通过隐层微分方程循环几十次“静默计算”。无冗长输出直接洞穿真理，呈现类人智者体验。
     \end{itemize}
     \vspace{0.3em}
     \item \textbf{2. 一生在线的潜意识 (Personal State Capsule)：}
     \begin{itemize}
         \item \textbf{云端巨头：} 每日对话失忆，需通过极度耗资的外部 RAG 去找回记忆。
-        \item \textbf{M1 架构：} 把百万字交互压缩为恒定极小的 $h_{prev}$ 胶囊。换新设备导入即刻继承长达三年的直觉与潜意识。
+        \item \textbf{AwareLiquid 架构：} 把百万字交互压缩为恒定极小的 $h_{prev}$ 胶囊。换新设备导入即刻继承长达三年的直觉与潜意识。
     \end{itemize}
     \vspace{0.3em}
     \item \textbf{3. 主动预测纠错 (Predictive Error Monitor)：}
     \begin{itemize}
-        \item M1 利用顶层主动向下预测用户意图，一旦逻辑背离，立刻由“被动回答”变为“主动亮红灯截断”护航。
+        \item AwareLiquid 利用顶层主动向下预测用户意图，一旦逻辑背离，立刻由“被动回答”变为“主动亮红灯截断”护航。
     \end{itemize}
     \vspace{0.3em}
     \item \textbf{4. 自研感知云路由 (Cloud Oracle Router)：}
     \begin{itemize}
-        \item 遭遇百科常识盲区时，本地 M1 会自动发起极简口令，调取我们自己部署的云端大参数版模型（\textbf{Awareness Cloud}）。传统大厂被排除在链路之外，实现 100\% 自有的液态智能生态流转。
+        \item 遭遇百科常识盲区时，本地 AwareLiquid 会自动发起极简口令，调取我们自己部署的云端大参数版模型（\textbf{Awareness Cloud}）。传统大厂被排除在链路之外，实现 100\% 自有的液态智能生态流转。
     \end{itemize}
 \end{itemize}
 \end{frame}
@@ -362,7 +362,7 @@
     \vspace{0.4em}
     \item \textbf{2. 超长下文抗噪（大海捞针）提取}
     \begin{itemize}
-        \item \textbf{实测数据：} 同等规模对抗中，Transformer 召回率暴跌至 2.3\%，M1 仍维持 96.5\%（42倍领先）。
+        \item \textbf{实测数据：} 同等规模对抗中，Transformer 召回率暴跌至 2.3\%，AwareLiquid 仍维持 96.5\%（42倍领先）。
         \item \textbf{商业意义：} 确保超长业务逻辑与多月度对话绝不“失忆”，从根本上消灭 AI 幻觉。
         \item \textbf{如何复现：} 执行代码库中的 \texttt{benchmarks/run\_benchmark.py}。
     \end{itemize}

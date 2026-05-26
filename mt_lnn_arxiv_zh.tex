@@ -249,7 +249,7 @@ $\phig$ (Gaussian TC) & 1.74 & 0.21 & 87.9\% & 0.3\,s \\
 Transformer 和普通的 LNN 缺乏 MT 相干参数，在 AVP 下表现出几乎恒定的 $\phihat$。只有 MT-LNN（其中 $\ell$ 直接调节动态相关参数）能够表现出微观生物学麻醉特征性的单调 $\phihat$-vs-$\kappa$ 坍缩。
 
 % ========================================================
-\section{M1 最新突破：稀疏共振与算子压缩}
+\section{AwareLiquid 最新突破：稀疏共振与算子压缩}
 
 近期增加的评测揭示了 MT-LNN 在实际流式推理环境中的关键性能跃升：
 
@@ -262,7 +262,7 @@ Transformer 和普通的 LNN 缺乏 MT 相干参数，在 AVP 下表现出几乎
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\linewidth]{fig_operator_compression_updates.pdf}
-    \caption{M1 架构近期推理评测。左图：基于稀疏共振门控 (Sparse Resonance) 的推理吞吐提速曲线；右图：引入算子压缩后导致的 $O(1)$ 流式内存微缩现象 (1000 tokens)。}
+    \caption{AwareLiquid 架构近期推理评测。左图：基于稀疏共振门控 (Sparse Resonance) 的推理吞吐提速曲线；右图：引入算子压缩后导致的 $O(1)$ 流式内存微缩现象 (1000 tokens)。}
     \label{fig:compression}
 \end{figure}
 

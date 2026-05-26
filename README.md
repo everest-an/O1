@@ -6,7 +6,7 @@
 ### Organic Brain-like LLM Architecture
 **Multi-Scale Predictive Coding · $O(1)$ Working Memory · Dynamic Compute Skipping**
 
-[![GitHub Stars](https://img.shields.io/github/stars/everest-an/M1?style=for-the-badge&color=1f75fe)](https://github.com/everest-an/M1)
+[![GitHub Stars](https://img.shields.io/github/stars/everest-an/AwareLiquid?style=for-the-badge&color=1f75fe)](https://github.com/everest-an/M1)
 [![Paper](https://img.shields.io/badge/PDF-English_Paper-red?style=for-the-badge)](https://huggingface.co/EverestAn/MT-LNN/resolve/main/mt_lnn_arxiv.pdf)
 [![Chinese Paper](https://img.shields.io/badge/PDF-Chinese_Paper-red?style=for-the-badge)](https://huggingface.co/EverestAn/MT-LNN/resolve/main/mt_lnn_arxiv_zh.pdf)
 [![HuggingFace](https://img.shields.io/badge/HF-MT--LNN-yellow?style=for-the-badge)](https://huggingface.co/EverestAn/MT-LNN)
@@ -78,7 +78,7 @@ We evaluated MT-LNN as a residual adapter on TinyLlama-1.1B (fine-tuned for 500 
 The benchmark suite automatically scales across available CPU and GPU hardware.
 
 ```bash
-git clone https://github.com/everest-an/M1.git && cd M1
+git clone https://github.com/everest-an/M1.git && cd AwareLiquid
 pip install torch numpy einops tqdm
 python benchmarks/compare_baselines.py
 python benchmarks/long_context.py
@@ -107,7 +107,7 @@ The goal is a biologically-inspired architecture for long-text and dynamic tasks
 
 ---
 
-## Why MT-LNN? The M1 Architecture Breakthroughs
+## Why MT-LNN? The AwareLiquid Architecture Breakthroughs
 
 ### 1. Multi-Scale Predictive Coding (Transcending "Next-Token Prediction")
 Standard LLMs blindly memorize the highest-probability paths of text. MT-LNN (M1) structurally mandates **Predictive Coding**: high-level abstract channels within the network constantly broadcast predictive signals down to lower-level sensory channels. The network computes an internal MSE loss against these predictions. To minimize this error, the model is physically forced to maintain a coherent causal simulation of the environment, giving it robust logical grounding unseen in basic Transformer autoregression.
@@ -194,12 +194,12 @@ This does not prove that MT-LNN is conscious. It shows that MT-LNN has a structu
 
 
 
-## Recent Core Mechanisms (M1 Updates)
+## Recent Core Mechanisms (AwareLiquid Updates)
 
-Recent experimental pathways implemented by the core team showcase the real-world inference and scaling capabilities of the M1 architecture.
+Recent experimental pathways implemented by the core team showcase the real-world inference and scaling capabilities of the AwareLiquid architecture.
 
 ### 1. Operator Compression (State-Only Streaming)
-By completely discarding historical KV cache tensors during sequential decoding workflows (retaining only the recurrent `h_prev` flow), M1 shrinks traditional quadratic memory constraints to strict $O(1)$. 
+By completely discarding historical KV cache tensors during sequential decoding workflows (retaining only the recurrent `h_prev` flow), AwareLiquid shrinks traditional quadratic memory constraints to strict $O(1)$. 
 - **At 1000 tokens:** The traditional KV stream consumes **~1020 KB** of state memory even on small scales. M1's state-only mechanism drops this footprint down to exactly **4.1 KB**.
 - **Results:** Achieves extreme inference compression suitable for embedded hardware at minimal divergence cost (bound to specific state dimensions rather than sequence length).
 
