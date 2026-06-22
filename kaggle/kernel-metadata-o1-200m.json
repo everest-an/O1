@@ -1,0 +1,13 @@
+{
+  "id": "muningan/o1-pretrain-200m",
+  "title": "O1 Pretrain 200M",
+  "code_file": "pretrain_o1_200m.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": false,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": []
+}
