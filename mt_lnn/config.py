@@ -93,6 +93,14 @@ class MTLNNConfig:
     # contextual state once and emits a fixed number of target slots, so tasks
     # such as Selective Copy can be evaluated without autoregressive decoding.
     direct_target_max_len: int = 16
+    # Whether to BUILD the direct-extraction head (target_queries/target_norm/
+    # target_head). It is an UNTIED nn.Linear(d_model, vocab_size) -> ~vocab*d_model
+    # params (e.g. 62.7M at d_model=1248, vocab=50257) that plain causal-LM
+    # pretraining never touches (it only fires when return_target_logits /
+    # direct_target_labels is passed). Default True preserves existing behavior;
+    # set False for from-scratch LM pretraining to spend that budget on depth
+    # instead of dead weight. Requesting target logits with it off raises.
+    use_target_head: bool = True
     
     # Optional Causal Chain and Self-Monitor Extraction Heads (Phase 2 & 3)
     use_causal_head: bool = False

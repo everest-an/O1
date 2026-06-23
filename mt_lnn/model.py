@@ -191,12 +191,17 @@ class MTLNNModel(nn.Module):
 
         # Auxiliary direct-extraction head. It maps the final prefix state into
         # fixed target slots, so extraction tasks can skip autoregressive decode.
-        self.target_queries = nn.Parameter(
-            torch.zeros(config.direct_target_max_len, config.d_model)
-        )
-        self.target_norm = nn.LayerNorm(config.d_model)
-        self.target_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
-        
+        # Gated by use_target_head: it is a large untied vocab projection that
+        # plain causal-LM pretraining never uses, so from-scratch LM runs disable
+        # it and spend the budget on depth instead.
+        self.use_target_head = getattr(config, "use_target_head", True)
+        if self.use_target_head:
+            self.target_queries = nn.Parameter(
+                torch.zeros(config.direct_target_max_len, config.d_model)
+            )
+            self.target_norm = nn.LayerNorm(config.d_model)
+            self.target_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+
         # Phase 2 & 3: Causal Chain and Self-Monitor Heads
         if getattr(config, "use_causal_head", False):
             self.causal_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
@@ -205,7 +210,8 @@ class MTLNNModel(nn.Module):
 
         # Weight initialisation
         self.apply(lambda m: init_weights(m, config))
-        nn.init.normal_(self.target_queries, mean=0.0, std=0.02)
+        if self.use_target_head:
+            nn.init.normal_(self.target_queries, mean=0.0, std=0.02)
         init_mt_params(self, config)
 
     # ------------------------------------------------------------------
@@ -296,6 +302,12 @@ class MTLNNModel(nn.Module):
             return_target_logits = True
 
         if return_target_logits:
+            if not self.use_target_head:
+                raise RuntimeError(
+                    "target logits requested but the direct-extraction head was "
+                    "not built (config.use_target_head=False). Enable it to use "
+                    "return_target_logits / direct_target_labels."
+                )
             if target_len is None:
                 target_len = self.config.direct_target_max_len
             if target_len < 1 or target_len > self.config.direct_target_max_len:

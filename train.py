@@ -134,6 +134,10 @@ def train(args):
     # ------------------------------------------------------------------
     # Model
     # ------------------------------------------------------------------
+    # Only build the (large, untied) direct-extraction head when a target path
+    # actually trains/uses it. Plain causal-LM pretraining leaves it off so the
+    # ~vocab*d_model budget goes to depth instead of dead weight.
+    want_target_head = bool(args.train_target_head) or args.target_loss_weight > 0.0
     config = MTLNNConfig(
         d_model=args.d_model,
         n_layers=args.n_layers,
@@ -142,6 +146,7 @@ def train(args):
         d_head=args.d_model // args.n_heads,
         max_seq_len=args.seq_len,
         dropout=args.dropout,
+        use_target_head=want_target_head,
         **cfg_kwargs,
     )
     model = MTLNNModel(config).to(device)
