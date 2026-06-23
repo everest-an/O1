@@ -16,6 +16,7 @@ Pipeline:
 """
 
 import argparse
+import glob
 import json
 import math
 import os
@@ -27,6 +28,32 @@ from torch.utils.data import DataLoader, Dataset
 
 from mt_lnn import MTLNNConfig, MTLNNModel
 from mt_lnn.utils import make_param_groups, WarmupCosineScheduler, save_checkpoint
+
+
+def prune_old_checkpoints(ckpt_dir: str, keep_last: int) -> list:
+    """Delete all but the *keep_last* most recent step-checkpoints in *ckpt_dir*.
+
+    Each checkpoint carries model + Adam optimizer state (~2.4 GB for the 200M
+    config), so on a capped volume like Kaggle's ~20 GB /kaggle/working, keeping
+    every save fills the disk and the next write fails mid-stream ("No space left
+    on device"). This keeps the K newest ``ckpt_<step>.pt`` files and removes the
+    rest. ``final.pt`` is named differently and is never matched/pruned here.
+
+    Step files use zero-padded 6-digit names (``ckpt_016000.pt``), so plain
+    lexicographic sort equals numeric (step) order. Returns the list of removed
+    paths. keep_last <= 0 disables pruning (returns []).
+    """
+    if keep_last <= 0:
+        return []
+    saved = sorted(glob.glob(os.path.join(ckpt_dir, "ckpt_[0-9]*.pt")))
+    removed = []
+    for old in saved[:-keep_last]:
+        try:
+            os.remove(old)
+            removed.append(old)
+        except OSError as exc:
+            print(f"  WARN could not prune {old}: {exc}")
+    return removed
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +318,12 @@ def train(args):
                 base_model = getattr(model, "_orig_mod", model)
                 save_checkpoint(base_model, optimizer, step, 0.0, ckpt_path, config)
                 print(f"  saved {ckpt_path}")
+                # Roll off old checkpoints to stay inside the disk budget (see
+                # prune_old_checkpoints). Without this, every 2.4 GB save is kept
+                # and the ~20 GB Kaggle volume fills, failing the next write.
+                for pruned in prune_old_checkpoints(args.ckpt_dir,
+                                                    args.keep_last_ckpts):
+                    print(f"  pruned {pruned}")
 
     # Final save
     base_model = getattr(model, "_orig_mod", model)
@@ -334,6 +367,10 @@ def parse_args():
     p.add_argument("--eval_every",    type=int,   default=500)
     p.add_argument("--eval_batches",  type=int,   default=50)
     p.add_argument("--save_every",    type=int,   default=2000)
+    # Keep only the most recent K step-checkpoints on disk (each is ~2.4 GB with
+    # optimizer state). Prevents "No space left on device" on capped volumes like
+    # Kaggle's ~20 GB /kaggle/working. 0 disables pruning (keep everything).
+    p.add_argument("--keep_last_ckpts", type=int, default=3)
     p.add_argument("--ckpt_dir",      type=str,   default="checkpoints")
     p.add_argument("--data_dir",      type=str,   default="data")
     p.add_argument("--num_workers",   type=int,   default=2)
