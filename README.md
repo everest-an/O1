@@ -18,60 +18,61 @@
 
 ---
 
-## 🔥 Empirical Benchmark Reproduction
+## 🔬 Empirical Benchmarks (corrected 2026-07)
 
-The following benchmark metrics have been independently reproduced. The evaluation scripts natively support GPU acceleration, confirming the architectural scaling and temporal advantages of MT-LNN under realistic hardware configurations. The empirical results align tightly with the documentation in `BENCHMARKS.md`.
+> **Correction note (2026-07-15).** Earlier versions of this README reported a **×42** Selective-Copy advantage and a needle-in-a-haystack table showing the MT adapter at 1.000 up to 4096 context. Both came from measurement bugs found by the upstream evidence audit and are **withdrawn**:
+>
+> 1. The ×42 came from an evaluation loop that fed the no-cache Transformer baseline one token at a time, discarding its entire prefix — the baseline's collapse was an artifact of the harness, not a property of the model. Under a fair decode the true advantage is **×1.32** (tables below).
+> 2. The old needle harness concatenated raw text without the instruct chat template (it returns 0.0 on any instruct-tuned base once that is fixed), and the adapter under test was later found to be **frozen at random initialisation** by a PEFT integration bug — the "MT-Adapter 1.000" rows measured the base model, not the adapter.
+>
+> Full audit trail: `BENCHMARKS.md` correction notes (2026-06-29, 2026-07-04) and `RESULTS.md` in the main repository. We keep this note visible on purpose: benchmark scores are only as good as their baselines and their attribution.
 
-![Empirical Benchmarks](fig_experiments.png)
+### Head-to-head on Selective Copy (~200K params each, corrected decode)
 
-### Head-to-head on Selective Copy (~200K params each, 1500 steps)
-
-| Model | Held-out tok-acc | **Held-out seq-exact** | Wall-clock |
+| Model | #Params | Held-out tok-acc | **Held-out seq-exact** |
 |---|---:|---:|---:|
-| Random baseline | 0.250 | 0.004 | — |
-| Vanilla Transformer (199K) | 0.432 | 0.023 | 14 s |
-| LNN (CfLTC FFN only, 136K) | 0.433 | 0.023 | 15 s |
-| **MT-LNN (204K, full architecture)** | **0.983** | **0.965** | 50 s |
-| MT-LNN advantage | ×2.3 | **×42** | — |
+| Random baseline | — | 0.250 | 0.004 |
+| Vanilla Transformer | 199,464 | 0.874 | 0.676 |
+| LNN (CfLTC FFN only) | 135,930 | 0.900 | 0.727 |
+| **MT-LNN (with pscan)** | **224,900** | **0.949** | **0.895** |
+| MT-LNN advantage vs Transformer | — | ×1.09 | **×1.32** |
 
-### Long-context sweep — the temporal advantage *grows* with T
+All three architectures learn the task and generalise under a fair decode. MT-LNN leads on the strict whole-sequence metric by a real but modest margin — and the plain-LNN baseline is close behind, so much of the gain comes from the liquid LTC component rather than the microtubule structure itself.
 
-| T_total | Transformer seq-exact | LNN seq-exact | **MT-LNN seq-exact** | MT-LNN advantage |
+### Long-context sweep (held-out seq-exact)
+
+| T_total | Transformer | LNN | **MT-LNN** | vs Transformer |
 |---:|---:|---:|---:|---:|
-| 37 | 0.031 | 0.031 | **0.367** | ×12 |
-| 101 | 0.016 | 0.016 | **0.547** | **×34** |
-| 229 | 0.016 | 0.016 | **0.078** | ×5 |
+| 37 | 0.672 | 0.703 | **0.883** | ×1.31 |
+| 101 | 0.570 | 0.727 | **0.742** | ×1.30 |
+| 229 | 0.109 | 0.172 | **0.219** | ×2.0 (all models degrade) |
 
-#### 1.1B Scale: Needle-in-a-Haystack (TinyLlama)
+### 1.1B needle-in-a-haystack (TinyLlama, chat-template harness, strict exact match)
 
-We evaluated MT-LNN as a residual adapter on TinyLlama-1.1B (fine-tuned for 500 steps) on the Needle-in-a-Haystack task.
-
-| Variant | Context | Depth | Exact | Contains | Tok/s | 
-|---|---:|---:|---:|---:|---:|
-| Base | 1024-2048 | All | 1.000 | 1.000 | ~800 |
-| MT-Adapter | 1024-2048 | All | **1.000** | **1.000** | ~670 (-13%) |
-| Base | 4096 (RoPE) | All | 1.000 | 1.000 | ~580 |
-| MT-Adapter | 4096 (RoPE) | All | **1.000** | **1.000** | ~545 |
-
-> *Note: Using RoPE scaling we successfully extended the 2048 window to 4096 without catastrophic forgetting. GPU memory limitations (OOM on T4) prevented evaluating scale up to 8192, but inference speed confirms MT-LNN imposes only ~10-15% latency degradation across contexts.*
-
-## AVP (anesthesia hooks) is architecture-specific
-
-Δ Φ̂ between κ=1 (clean) and κ=10 (heavy anesthesia). Only MT-LNN's `MTLNNLayer` + `GlobalCoherenceLayer` carry the hooks, so the baselines' delta is exactly 0:
-
-| Model | Φ̂(κ=1) | Φ̂(κ=10) | Δ Φ̂ |
+| Variant | 1024 | 2048 | 4096 |
 |---|---:|---:|---:|
-| Transformer | -9.045 | -9.045 | 0.000 (no hooks) |
-| LNN | -7.977 | -7.977 | 0.000 (no hooks) |
-| **MT-LNN** | -18.673 | -11.096 | **+7.578 (responsive)** |
+| Base | 0.867 | 1.000 | 0.000 |
+| MT-Adapter (faithful build, 374/374 tensors mapped) | **1.000** | 1.000 | 0.000 |
 
-> ⚠️ At ~200K toy scale the sign is inverted vs. the paper's prediction — Φ̂ rises with κ instead of collapsing. The architectural *responsiveness* is real; the *direction* is expected to flip once trained at 125M+ on real text. See `BENCHMARKS.md` § "Anesthesia Validation Protocol" for this known limitation.
+Within the base model's 2048 RoPE window retrieval is near-perfect for **both** — the adapter is no worse, and slightly better at the hardest in-window cell. This is parity, not a headline advantage. 4096 fails for both (base RoPE limit). Harness: `bench_needle_m1_faithful.py`, raw data in `benchmarks/needle_m1_chat_template.json`.
+
+### What genuinely survives the audit
+
+| Result | Number | Source |
+|---|---|---|
+| **Cross-window associative recall** — recall of facts whose KV cache was dropped between segments, carried by the fast-weight memory | **0.56** (3 seeds) vs **0.00** for attention/LoRA (structurally cannot); ablating the fast-weight path → 0.008 | `BENCHMARKS.md` § cross-window recall |
+| **O(1) inference state** (attention-free ARR line) | **0.381 MB constant** vs 384 MB KV-cache @ 128k context (~1000×) | `scaling_comparison.py --mode decode` |
+| From-scratch 125M pretraining signal | −31% val PPL vs a matched simple Transformer — **budget-limited: single seed, 2000 steps, repo-internal baseline**; a fair-baseline run against Mamba-130m is in progress | `scaling_comparison.py --mode train` |
+
+### AVP (anesthesia hooks)
+
+The hooks are architecture-specific (the baselines carry none, so their Φ̂ delta is exactly 0, while MT-LNN responds) — but the validation itself **did not pass**: at toy scale Φ̂ moves in the *opposite* direction to the Orch-OR prediction. Status: retracted as evidence; the instrumentation is kept for research. See `RESULTS.md` in the main repository.
 
 ### Reproducibility and Scope
 
-✅ **Validates**: The architectural priors of MT-LNN (13 protofilaments, GTP renewal, parallel-scan recurrence, RMC coupling, and GWTB) yield a robust 41-fold advantage over matched-parameter baselines on long-range selective tasks. Crucially, this performance gap widens as sequence length increases.
+✅ **Validates**: a real but modest (×1.3–2.0) long-range selective-copy edge at toy scale; a genuine cross-window recall capability carried by the fast-weight memory; the O(1) recurrent inference state.
 
-❌ **Excludes** (by design): Broad capabilities on MMLU, HellaSwag, or general language modeling (LM) perplexity. The repository does not include a pretrained 125M checkpoint. Scaling to these generic benchmarks requires either (a) full distributed GPU training on WikiText-103+ (noted as future work), or (b) the `train_llama_mt_adapter.py` pipeline using a frozen Qwen base (requires RTX 4090, A6000, or A100 per `CLOUD_RUN.md`).
+❌ **Not validated**: broad capability benchmarks (MMLU etc.), hallucination reduction (never measured), and any number from the pre-correction tables — treat anything not traceable to `RESULTS.md`'s PROVEN table as unverified.
 
 ### Benchmark Execution
 
@@ -86,6 +87,7 @@ python benchmarks/run_benchmark.py
 ```
 
 *Note: Historical reference logs from plain CPU sandbox runs are preserved in `benchmarks/cpu_repro_20260517/`.*
+
 
 ---
 
@@ -243,10 +245,14 @@ Reproduce with `python benchmarks/compare_baselines.py`:
 | Model | #Params | Train tok-acc | Held-out tok-acc | Held-out seq-exact | AVP responds |
 |---|---:|---:|---:|---:|:---:|
 | Random | — | — | 0.250 | 0.0039 | — |
-| Vanilla Transformer | 199 K | 0.938 | 0.432 | 0.023 | ✗ |
-| LNN (CfLTC FFN) | 136 K | 0.969 | 0.433 | 0.023 | ✗ |
-| **MT-LNN (ours, with pscan)** | **204 K** | **0.984** | **0.983** | **0.965** | **✓ (+8.499)** |
-| MT-LNN advantage | — | — | **+0.55** (×2.3) | **+0.942** (×42) | — |
+| Vanilla Transformer | 199 K | 0.875 | 0.874 | 0.676 | ✗ |
+| LNN (CfLTC FFN) | 136 K | 0.969 | 0.900 | 0.727 | ✗ |
+| **MT-LNN (ours, with pscan)** | **204 K** | **1.000** | **0.949** | **0.895** | **✓ (responsive, sign inverted)** |
+| MT-LNN advantage | — | — | ×1.09 | **×1.32** | — |
+
+> The earlier version of this table showed the baselines collapsing to 0.023
+> seq-exact and a ×42 advantage — that was the broken-decode evaluation
+> artifact described in the correction note at the top of this README.
 
 MT-LNN runs a **true parallel scan** (Blelloch / Mamba-style) inside the
 multi-scale-resonance bank, so `h_t = decay * h_{t-1} + (1-decay) * A_t`
@@ -261,14 +267,16 @@ sequence lengths (matched compute per pair):
 
 | T_total | Transformer seq-exact | LNN seq-exact | **MT-LNN seq-exact** | MT-LNN ratio |
 |---:|---:|---:|---:|---:|
-| 37  | 0.031 | 0.031 | **0.523** | ×17 |
-| 101 | 0.016 | 0.016 | **0.438** | **×27** |
-| 229 | 0.016 | 0.016 | **0.094** | ×6 |
+| 37  | 0.672 | 0.703 | **0.883** | ×1.31 |
+| 101 | 0.570 | 0.727 | **0.742** | ×1.30 |
+| 229 | 0.109 | 0.172 | **0.219** | ×2.0 |
 
-The MT-LNN advantage **grows** from ×17 to ×27 going from T=37 to T=101,
-empirically validating the central claim that the temporal-recurrence
-inductive bias is what gives MT-LNN long-range memory. The ×6 ratio at
-T=229 is training-compute limited (only 500 steps for a much harder task).
+MT-LNN leads on strict whole-sequence recall at every length, by a real but
+modest margin that widens to ×2.0 at T=229 (where every model degrades).
+The earlier ×17–×27 ratios came from the broken-decode baseline artifact
+(see the correction note at the top); note also that the plain-LNN baseline
+is close behind MT-LNN, so much of the gain comes from the liquid LTC
+component rather than the microtubule structure.
 
 ## Optional scientific-rigour modules
 
@@ -405,16 +413,18 @@ python bench_llama_mt_ablation.py \
   --out_json benchmarks/llama_mt_ablation.json
 ```
 
-Run a needle-in-a-haystack retrieval benchmark for the long-context claim:
+Run a needle-in-a-haystack retrieval benchmark for the long-context claim.
+**Use the chat-template harness** — the legacy `bench_llama_mt_needle.py`
+concatenates raw text without the instruct chat template and returns
+misleading scores on instruct-tuned bases (see the correction note at the
+top of this README):
 
 ```bash
-python bench_llama_mt_needle.py \
-  --model meta-llama/Llama-3.2-1B \
-  --adapters checkpoints/llama_mt_adapter/llama_mt_adapter_001000.pt \
+python bench_needle_m1_faithful.py \
   --context_lengths 1024 2048 4096 \
   --depths 0.1 0.5 0.9 \
   --samples 5 \
-  --out_json benchmarks/llama_mt_needle.json
+  --out_json benchmarks/needle_m1_chat_template.json
 ```
 
 ## Architecture
