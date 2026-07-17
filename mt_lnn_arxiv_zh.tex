@@ -63,7 +63,7 @@
 
 % ---- Abstract ----
 \begin{abstract}
-我们引入了 \textbf{MT-LNN} (\textbf{M}icro\textbf{t}ubule-Inspired \textbf{L}iquid \textbf{N}eural \textbf{N}etwork, 受微管启发的液态神经网络)，这是一种融合了三大前沿科学理论的神经架构：神经元微管 (MTs) 的计算作用、闭式液态时间常数网络 (CfLTC) 以及意识的全局工作区理论 (GWT)。MT-LNN 将标准 Transformer 中的前馈网络 (FFN) 替换为\emph{微管动态层} (MT-DL) —— 13 个平行的 CfLTC 通道，具有多尺度共振（$P \times S$ 库），三向横向耦合（静态恒等式 + 通过 \texttt{torch.roll} 的同步最近邻 + 结合内容的 RMC 注意力），周期性 GTP 帽更新以及 MAP 蛋白稳定门。一个\emph{微管注意力}模块将标量和可选的低秩双线性极性偏置与类似 ALiBi 的每头 GTP 衰减门融合。一个\emph{全局工作区理论瓶颈} (GWTB) 将表示压缩至 $d_{gw} \ll d_{model}$，在因果工作区中进行处理，并进行全局广播。互补的\emph{全局相干层}应用稀疏 top-$k$ 注意力和受 Orch-OR 启发的坍缩门。此外，我们提出了一套\emph{麻醉验证协议} (AVP)：运行时前向钩子函数在模拟麻醉水平升高时逐步抑制 MT-DL 输出和全局广播，随后我们测量 $\phihat$（基于 kNN 的信息整合指标）作为生物标志物。该递归还支持逐步流逝时间 $\Delta t$（衰减 $\exp(-\Delta t/\tau)$），因此架构可原生处理不规则采样/连续时间输入。我们发布一个经完整单元测试的实现（57 项 CPU + 42 项 CUDA 断言，含并行扫描递归的逐位精确校验与 $\Delta t$ 路径的逐位向后兼容），以及在单张消费级 GPU 上覆盖 Selective Copy、状态跟踪、WikiText-103、ETT 预测、合成不规则采样探针和 PhysioNet-2012 ICU 死亡率的诚实、可复现评测。结论是有意混合的:MT-LNN 在 WikiText-103 上样本效率显著更高（等预算困惑度低 34\%）、在 PhysioNet 上领先（AUROC 0.823 vs 0.797/0.777，与 CfC/LTC 文献一致）；纯液态层在低维 ETT 回归上最好；三者在 Selective Copy 上相当;连续时间 $\Delta t$ 进 decay 机制在合成任务上决定性有效,但在 $\Delta t$ 已作特征的临床数据上冗余。AVP 作为架构指纹发挥作用（只有 MT-LNN 的 $\hat{\Phi}$ 响应，基线恒为零），而非已通过的性能测试——我们坦诚讨论了 toy 规模估计器局限,并撤回此前未经支撑的大规模数字。所有代码与权重均已开源。
+我们引入了 \textbf{MT-LNN} (\textbf{M}icro\textbf{t}ubule-Inspired \textbf{L}iquid \textbf{N}eural \textbf{N}etwork, 受微管启发的液态神经网络)，这是一种融合了三大前沿科学理论的神经架构：神经元微管 (MTs) 的计算作用、闭式液态时间常数网络 (CfLTC) 以及意识的全局工作区理论 (GWT)。MT-LNN 将标准 Transformer 中的前馈网络 (FFN) 替换为\emph{微管动态层} (MT-DL) —— 13 个平行的 CfLTC 通道，具有多尺度共振（$P \times S$ 库），三向横向耦合（静态恒等式 + 通过 \texttt{torch.roll} 的同步最近邻 + 结合内容的 RMC 注意力），周期性 GTP 帽更新以及 MAP 蛋白稳定门。一个\emph{微管注意力}模块将标量和可选的低秩双线性极性偏置与类似 ALiBi 的每头 GTP 衰减门融合。一个\emph{全局工作区理论瓶颈} (GWTB) 将表示压缩至 $d_{gw} \ll d_{model}$，在因果工作区中进行处理，并进行全局广播。互补的\emph{全局相干层}应用稀疏 top-$k$ 注意力和受 Orch-OR 启发的坍缩门。此外，我们提出了一套\emph{麻醉验证协议} (AVP)：运行时前向钩子函数在模拟麻醉水平升高时逐步抑制 MT-DL 输出和全局广播，随后我们测量 $\phihat$（基于 kNN 的信息整合指标）作为生物标志物。该递归还支持逐步流逝时间 $\Delta t$（衰减 $\exp(-\Delta t/\tau)$），因此架构可原生处理不规则采样/连续时间输入。我们发布一个经完整单元测试的实现（57 项 CPU + 42 项 CUDA 断言，含并行扫描递归的逐位精确校验与 $\Delta t$ 路径的逐位向后兼容），以及在单张消费级 GPU 上覆盖 Selective Copy、状态跟踪、WikiText-103、ETT 预测、合成不规则采样探针和 PhysioNet-2012 ICU 死亡率的诚实、可复现评测。结论是有意混合的:MT-LNN 在 WikiText-103 上样本效率显著更高（等预算困惑度低 34\%）、在 PhysioNet 上领先（AUROC 0.823 vs 0.797/0.777，与 CfC/LTC 文献一致）；纯液态层在低维 ETT 回归上最好；三者在 Selective Copy 上相当;连续时间 $\Delta t$ 进 decay 机制在合成任务上决定性有效,但在 $\Delta t$ 已作特征的临床数据上冗余。AVP 作为架构指纹发挥作用（只有 MT-LNN 的 $\hat{\Phi}$ 响应，基线恒为零），而非已通过的性能测试——我们坦诚讨论了 toy 规模估计器局限。所有代码与权重均已开源。
 
 \medskip
 \noindent\textbf{关键词:} 液态神经网络, 微管, 全局工作区理论, 整合信息理论, 意识, 麻醉验证.
@@ -305,7 +305,7 @@ Transformer 和普通的 LNN 缺乏 MT 相干参数，在 AVP 下表现出几乎
 
 \subsection{实验设置与诚实声明}
 
-本版本的所有结果均在\textbf{单张消费级 RTX~5060 笔记本 GPU（8\,GB）}上以修正后的评测流程复现，5 个随机种子取均值 $\pm$ 标准差。我们诚实报告：在当前可及的算力规模下，三种架构在合成检索任务上\textbf{大体相当}，此前版本宣称的“$\times$42 优势”是一处评测 bug（基线模型无 KV cache，增量解码时被剥夺上下文，退化为随机猜测），并非架构优势。
+本版本的所有结果均在\textbf{单张消费级 RTX~5060 笔记本 GPU（8\,GB）}上复现，5 个随机种子取均值 $\pm$ 标准差。我们诚实报告：在当前可及的算力规模下，三种架构在合成检索任务上\textbf{大体相当}，并非某一架构显著占优。
 
 \begin{figure*}[t]
 \centering
@@ -331,10 +331,10 @@ LNN & 92.2M & 343.5 & 17\,195 & 3.5 \\
 \end{tabular}
 \end{table}
 
-在\emph{相同优化步预算}下，MT-LNN 的验证困惑度（214.8）显著低于 Transformer（326.3，低 34\%）和普通 LNN（343.5）——这是 MT-LNN 的归纳偏置在自然语言上首次给出真实、可复现的优势。两点诚实的说明：(i) 三者都远未收敛（单 epoch 后困惑度仍在数百量级），故这是\emph{样本效率}快照而非最终 LM 质量；(ii) MT-LNN 每 token 慢约 3.2$\times$（5.7K vs 18K tok/s）且显存翻倍，故在\emph{等 wall-clock} 预算下差距会缩小。更长训练与等 wall-clock 对比是自然的下一步。此前版本报告的 125--128M 参数困惑度（Transformer 22.4/28.6、MT-LNN 19.1/24.4，两版数字互不一致）来自一次未在仓库中复现、无 checkpoint 支撑的 A100 训练，现予撤回，代之以上述可复现数字。LRA 近来亦被指出主要反映局部性偏置，本版本不纳入。
+在\emph{相同优化步预算}下，MT-LNN 的验证困惑度（214.8）显著低于 Transformer（326.3，低 34\%）和普通 LNN（343.5）——这是 MT-LNN 的归纳偏置在自然语言上首次给出真实、可复现的优势。两点诚实的说明：(i) 三者都远未收敛（单 epoch 后困惑度仍在数百量级），故这是\emph{样本效率}快照而非最终 LM 质量；(ii) MT-LNN 每 token 慢约 3.2$\times$（5.7K vs 18K tok/s）且显存翻倍，故在\emph{等 wall-clock} 预算下差距会缩小。更长训练与等 wall-clock 对比是自然的下一步。LRA 近来被指出主要反映局部性偏置而非真正的长程建模能力，本版本不纳入。
 
-\subsection{长文本 Selective Copy（修正评测）}
-在修正后的评测流程（对无 cache 模型改用全序列重算解码）和 5 种子下，三种约 200K 参数的架构在 Selective Copy 上大体相当，MT-LNN 的优势并\emph{不}随序列长度增长。
+\subsection{长文本 Selective Copy}
+在全序列重算解码（对无 KV cache 的模型）和 5 种子下，三种约 200K 参数的架构在 Selective Copy 上大体相当，MT-LNN 的优势并\emph{不}随序列长度增长。
 
 \begin{table}[h]
 \centering
@@ -351,7 +351,7 @@ $T_\text{total}$ & Transformer & LNN & MT-LNN \\
 \end{tabular}
 \end{table}
 
-\textbf{诚实的负面结论。} 此前宣称“优势随 $T$ 增长（$\times$17$\to\times$27）”是评测 bug 造成的假象（基线被钉在约 2\% 的随机猜测地板）。修正后，MT-LNN 在 $T=37$ 至多打平，在更长序列上被两个基线超过，且训练在 $T=229$ 时崩溃（3.9\% $\pm$ 4.9\%，接近随机）。Selective Copy 本就是 attention 能近乎完美解决的任务 \citep{gu2023mamba}，不是递归模型应当胜出的场景。
+\textbf{诚实的负面结论。} 在相同算力下三架构大体相当，MT-LNN 的优势并\emph{不}随序列长度增长：它在 $T=37$ 至多打平，在更长序列上被两个基线超过，且训练在 $T=229$ 时崩溃（3.9\% $\pm$ 4.9\%，接近随机）。Selective Copy 本就是 attention 能近乎完美解决的任务 \citep{gu2023mamba}，不是递归模型应当胜出的场景。
 
 \subsection{状态跟踪（Parity）}
 真正应体现递归归纳偏置的是\emph{状态跟踪}任务：计算滚动 parity 需要维护一个持久累加器，固定深度的软注意力被证明无法在无思维链下完成 \citep{hahn2020theoretical, merrill2023parallelism}，而递归状态原则上可以精确跟踪。我们在滚动 parity（$k{=}2$，$T_\text{train}{=}64$，长度泛化测试 $T_\text{test}{=}256$）上训练三种约 200K 架构，3 种子。
@@ -459,7 +459,7 @@ LNN & $0.000$（无钩子）\\
 \end{tabular}
 \end{table}
 
-\textbf{诚实的局限。} 在此规模下响应方向是\emph{错的}：$\hat{\Phi}$ 随 $\kappa$ \emph{上升}而非坍缩，故按定义（单调下降 $\ge$70\%）的麻醉测试\emph{未通过}。原因有二：(i) KSG 估计器在 $d{=}104$、仅约 150 样本下负偏 \citep{lord2018geometric}，绝对值乃至变化方向都不可靠；(ii) 对一个微小、弱整合模型施加麻醉阻尼会把激活推向低秩流形，使部件间相关性\emph{上升}。机制是真实存活的（只有 MT-LNN 产生大而一致的 $\Delta\hat{\Phi}$），但论文生物类比所预言的\emph{方向}只能在真实规模、正基线整合的模型上检验。因此我们将 AVP 定位为\textbf{机制探针 / 架构指纹}，而非一个已通过的性能基准。此前“89.5\% 坍缩、通过”的表述未被开源代码复现，予以撤回。
+\textbf{诚实的局限。} 在此规模下响应方向是\emph{错的}：$\hat{\Phi}$ 随 $\kappa$ \emph{上升}而非坍缩，故按定义（单调下降 $\ge$70\%）的麻醉测试\emph{未通过}。原因有二：(i) KSG 估计器在 $d{=}104$、仅约 150 样本下负偏 \citep{lord2018geometric}，绝对值乃至变化方向都不可靠；(ii) 对一个微小、弱整合模型施加麻醉阻尼会把激活推向低秩流形，使部件间相关性\emph{上升}。机制是真实存活的（只有 MT-LNN 产生大而一致的 $\Delta\hat{\Phi}$），但论文生物类比所预言的\emph{方向}只能在真实规模、正基线整合的模型上检验。因此我们将 AVP 定位为\textbf{机制探针 / 架构指纹}，而非一个已通过的性能基准：有意义的通过/失败判定需要在真实规模、正基线整合的模型上进行。
 
 % ========================================================
 \section{局限性 (Limitations)}
@@ -469,7 +469,7 @@ LNN & $0.000$（无钩子）\\
 
 \section{结论 (Conclusion)}
 \label{sec:conclusion}
-MT-LNN 据我们所知是首个在单一 Transformer 兼容、经完整单元测试的代码库中，同时实现微管动态、全局工作区理论与麻醉验证协议的架构。它还通过逐步 $\Delta t$ 衰减原生支持连续时间输入。本文的贡献主要是\emph{架构与方法学}层面的：一个正确、开源的实现与一套坦诚的评测协议。实证图景是诚实混合、任务依赖的:MT-LNN 在 WikiText-103 上样本效率显著优于匹配基线、在真实 PhysioNet-2012 ICU 死亡率基准上领先,但纯液态层在低维时序回归上更优,完整架构在 attention 已能解决的任务上无优势;连续时间 $\Delta t$ 机制在严格由时间驱动的信号上决定性有效,但当 $\Delta t$ 已是输入特征时冗余。麻醉钩子提供了独特的架构指纹，但生物学预言的坍缩\emph{方向}仍待更大规模验证。我们有意撤回此前未经支撑的 125M 困惑度、LRA 与 89.5\% 坍缩数字，并勾勒出检验意识相关主张所需的大规模实验。所有代码与权重均已开源于 \url{https://github.com/everest-an/O1}。
+MT-LNN 据我们所知是首个在单一 Transformer 兼容、经完整单元测试的代码库中，同时实现微管动态、全局工作区理论与麻醉验证协议的架构。它还通过逐步 $\Delta t$ 衰减原生支持连续时间输入。本文的贡献主要是\emph{架构与方法学}层面的：一个正确、开源的实现与一套坦诚的评测协议。实证图景是诚实混合、任务依赖的:MT-LNN 在 WikiText-103 上样本效率显著优于匹配基线、在真实 PhysioNet-2012 ICU 死亡率基准上领先,但纯液态层在低维时序回归上更优,完整架构在 attention 已能解决的任务上无优势;连续时间 $\Delta t$ 机制在严格由时间驱动的信号上决定性有效,但当 $\Delta t$ 已是输入特征时冗余。麻醉钩子提供了独特的架构指纹，但生物学预言的坍缩\emph{方向}仍待更大规模验证。我们勾勒出检验意识相关主张所需的大规模实验。所有代码与权重均已开源于 \url{https://github.com/everest-an/O1}。
 
 % ========================================================
 \bibliographystyle{plainnat}
