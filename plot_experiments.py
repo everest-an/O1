@@ -1,3 +1,19 @@
+"""
+plot_experiments.py — Figure 2 (fig_experiments) from REAL benchmark data.
+
+Reads benchmarks/multi_seed_results.json (produced by
+`python benchmarks/multi_seed_sweep.py`) and renders three panels:
+
+  Left:   Selective Copy held-out seq-exact, 5-seed mean +/- std (headline run)
+  Center: Long-context sweep — seq-exact vs T_total, mean +/- std
+  Right:  AVP response — MT-LNN Phi_hat at kappa=1 vs kappa=10 (baselines: no hooks, delta = 0)
+
+Every number in the figure comes from the JSON; nothing is hard-coded.
+"""
+
+import json
+import statistics
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -25,78 +41,96 @@ PALETTE = {
     "red_strong": "#B64342",
     "green_strong": "#2E9E44",
 }
+MODEL_COLORS = {
+    "Transformer": PALETTE["baseline_dark"],
+    "LNN":         PALETTE["baseline_mid"],
+    "MT-LNN":      PALETTE["red_strong"],
+}
+MODELS = ["Transformer", "LNN", "MT-LNN"]
 
-colors = [PALETTE['baseline_dark'], PALETTE['baseline_mid'], PALETTE['ours_base'], PALETTE['ours_large']]
+with open("benchmarks/multi_seed_results.json", encoding="utf-8") as f:
+    R = json.load(f)
+
+
+def ms(values):
+    if len(values) == 1:
+        return values[0], 0.0
+    return statistics.mean(values), statistics.stdev(values)
+
 
 fig = plt.figure(figsize=(7.2, 2.5))
 
-# Subplot 1: WikiText-103 PPL vs Phi_hat
+# ---------------------------------------------------------------------------
+# Panel 1: headline Selective Copy seq-exact (mean +/- std over seeds)
+# ---------------------------------------------------------------------------
 ax1 = fig.add_subplot(131)
-models = ['Transformer', 'LNN', 'MT-LNN-nGWT', 'MT-LNN']
-ppl = [22.4, 21.1, 20.0, 19.1]
-phi_hat = [0.17, 0.24, 0.32, 0.38]
+means, stds = [], []
+for m in MODELS:
+    mu, sd = ms([r["seq_exact"] for r in R["headline_T37"][m]])
+    means.append(mu)
+    stds.append(sd)
 
-ax1.scatter(phi_hat[0], ppl[0], color=colors[0], s=60, label=models[0], zorder=3)
-ax1.scatter(phi_hat[1], ppl[1], color=colors[1], s=60, label=models[1], zorder=3)
-ax1.scatter(phi_hat[2], ppl[2], color=colors[2], s=60, label=models[2], zorder=3)
-ax1.scatter(phi_hat[3], ppl[3], color=colors[3], s=100, label=models[3], marker='*', zorder=3)
-
-# Connect with line
-ax1.plot(phi_hat, ppl, '--', color='#A8A8A8', zorder=1)
-
-ax1.set_xlabel('Integration Metric ($\\hat{\\Phi}$ $\\uparrow$)')
-ax1.set_ylabel('WikiText-103 PPL $\\downarrow$')
+x = np.arange(len(MODELS))
+ax1.bar(x, means, 0.55, yerr=stds, capsize=3,
+        color=[MODEL_COLORS[m] for m in MODELS])
+ax1.axhline(0.25 ** 4, ls=":", color="#A8A8A8", lw=1)
+ax1.text(0.02, 0.25 ** 4 + 0.015, "random", fontsize=6, color="#888888")
+ax1.set_xticks(x)
+ax1.set_xticklabels(MODELS, rotation=12)
+ax1.set_ylabel("Held-out seq-exact")
+ax1.set_ylim(0, 1.0)
+ax1.set_title("Selective Copy (T=37, 1500 steps)")
 ax1.spines['top'].set_visible(False)
 ax1.spines['right'].set_visible(False)
-ax1.legend(frameon=False, loc='upper right', bbox_to_anchor=(1.05, 1.05))
 
-# Subplot 2: LRA Accuracy
+# ---------------------------------------------------------------------------
+# Panel 2: long-context sweep, seq-exact vs T_total
+# ---------------------------------------------------------------------------
 ax2 = fig.add_subplot(132)
-tasks = ['Pathfinder', 'ListOps', 'Text', 'Avg']
-tf = [64.2, 36.9, 64.3, 55.1]
-lnn = [68.9, 37.8, 65.7, 57.5]
-mt_ngwt = [71.4, 39.1, 67.2, 59.2]
-mt_lnn = [73.1, 40.3, 68.9, 60.8]
-
-x = np.arange(len(tasks))
-width = 0.2
-
-ax2.bar(x - 1.5*width, tf, width, label='Transformer', color=colors[0])
-ax2.bar(x - 0.5*width, lnn, width, label='LNN', color=colors[1])
-ax2.bar(x + 0.5*width, mt_ngwt, width, label='MT-LNN-nGWT', color=colors[2])
-ax2.bar(x + 1.5*width, mt_lnn, width, label='MT-LNN', color=colors[3])
-
-ax2.set_ylabel('LRA Accuracy (%)')
-ax2.set_xticks(x)
-ax2.set_xticklabels(tasks)
+sweep = [("longctx_T37", 37), ("longctx_T101", 101), ("longctx_T229", 229)]
+for m in MODELS:
+    mus, sds = [], []
+    for key, _t in sweep:
+        mu, sd = ms([r["seq_exact"] for r in R[key][m]])
+        mus.append(mu)
+        sds.append(sd)
+    ts = [t for _k, t in sweep]
+    ax2.errorbar(ts, mus, yerr=sds, marker="o", capsize=3,
+                 label=m, color=MODEL_COLORS[m])
+ax2.set_xlabel("$T_\\mathrm{total}$")
+ax2.set_ylabel("Held-out seq-exact")
+ax2.set_xscale("log")
+ax2.set_xticks([37, 101, 229])
+ax2.get_xaxis().set_major_formatter(plt.ScalarFormatter())
+ax2.set_title("Long-context sweep (600/500 steps)")
+ax2.legend(frameon=False)
 ax2.spines['top'].set_visible(False)
 ax2.spines['right'].set_visible(False)
-ax2.set_ylim(30, 80)
-# legend not needed, ax1 has it
-# ax2.legend(frameon=False)
 
-# Subplot 3: Selective Copy Advantage
+# ---------------------------------------------------------------------------
+# Panel 3: AVP — Phi_hat response to anesthesia (MT-LNN only has hooks)
+# ---------------------------------------------------------------------------
 ax3 = fig.add_subplot(133)
-seq_lengths = [37, 69, 101]
-tf_acc = [52.1, 38.4, 22.0]
-lnn_acc = [74.5, 68.2, 60.1]
-mt_lnn_acc = [88.2, 85.1, 83.4]
+mt_runs = R["headline_T37"]["MT-LNN"]
+phi1_mu, phi1_sd = ms([r["phi_clean"] for r in mt_runs])
+phi10_mu, phi10_sd = ms([r["phi_full"] for r in mt_runs])
 
-# Advantage is MT-LNN / Transformer
-advantage_lnn = np.array(lnn_acc) / np.array(tf_acc)
-advantage_mt_lnn = np.array(mt_lnn_acc) / np.array(tf_acc)
-
-ax3.plot(seq_lengths, advantage_lnn, '-o', label='LNN / TF', color=colors[1])
-ax3.plot(seq_lengths, advantage_mt_lnn, '-P', label='MT-LNN / TF', color=colors[3])
-
-ax3.set_xlabel('Sequence Length $T$')
-ax3.set_ylabel('Advantage Ratio over Transformer')
+ax3.errorbar([1, 10], [phi1_mu, phi10_mu], yerr=[phi1_sd, phi10_sd],
+             marker="o", capsize=3, color=MODEL_COLORS["MT-LNN"],
+             label="MT-LNN (hooks active)")
+# Baselines have no anesthesia hooks: delta is exactly 0 by construction.
+delta_ref = phi1_mu
+ax3.plot([1, 10], [delta_ref, delta_ref], ls="--", color="#A8A8A8",
+         label="no-hook reference (flat)")
+ax3.set_xlabel("Anesthesia level $\\kappa$")
+ax3.set_ylabel("$\\hat{\\Phi}$")
+ax3.set_xticks([1, 10])
+ax3.set_title("AVP response (toy scale)")
+ax3.legend(frameon=False, fontsize=6)
 ax3.spines['top'].set_visible(False)
 ax3.spines['right'].set_visible(False)
-ax3.set_xticks(seq_lengths)
-ax3.legend(frameon=False)
 
 plt.tight_layout()
 plt.savefig('fig_experiments.pdf', bbox_inches='tight', dpi=300)
 plt.savefig('fig_experiments.png', bbox_inches='tight', dpi=300)
-print("Saved fig_experiments.pdf and fig_experiments.png")
+print("Saved fig_experiments.pdf and fig_experiments.png (from multi_seed_results.json)")

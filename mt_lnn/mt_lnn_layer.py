@@ -23,7 +23,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .config import MTLNNConfig
-from .parallel_scan import pscan_constant_A
+from .parallel_scan import pscan, pscan_constant_A
 
 
 # ---------------------------------------------------------------------------
@@ -70,12 +70,18 @@ class VectorizedMultiScaleResonance(nn.Module):
         self.blend_weights = nn.Parameter(torch.zeros(P, S))
 
     def forward(self, x: torch.Tensor, h_prev: torch.Tensor,
-                use_scan: bool = True):
+                use_scan: bool = True, dt: torch.Tensor = None):
         """
         x:        (B, T, P, D)
         h_prev:   real-mode:    (B, P, S, D)  — per-scale recurrent state
                   legacy mode:  (B, T, P, D)  — broadcast h_prev (no recurrence)
                   None:         treated as zeros
+        dt:       None → uniform time step self.dt (fast constant-A scan, the
+                  default LM path — behaviour is byte-identical to before).
+                  (B, T) or (T,) → per-step elapsed time between samples, for
+                  irregularly-sampled / continuous-time inputs. A larger gap
+                  Δt decays the recurrent state more (decay = exp(-Δt/τ)),
+                  which is the defining CfLTC property for non-uniform sampling.
 
         Returns (out, h_last) where
           out    : (B, T, P, D)  — blended across scales
@@ -98,14 +104,22 @@ class VectorizedMultiScaleResonance(nn.Module):
         A = A + self.b_in                                              # broadcast (P,S,D)
         A = torch.sigmoid(A)
 
-        # 2. Decay per (proto, scale)
+        # 2. Decay per (proto, scale). Uniform (P,S) when dt is None; per-step
+        #    (B,T,P,S) for irregularly-sampled inputs.
         tau = F.softplus(self.log_tau) + self.tau_min                 # (P,S)
         tau = tau.clamp(self.tau_min, self.tau_max)
-        decay = torch.exp(-self.dt / tau)                              # (P,S)
+        if dt is None:
+            decay = torch.exp(-self.dt / tau)                          # (P,S)
+        else:
+            if dt.dim() == 1:                                          # (T,) → (B,T)
+                dt = dt.unsqueeze(0).expand(B, T)
+            decay = torch.exp(-dt.reshape(B, T, 1, 1).clamp(min=1e-6)
+                              / tau.view(1, 1, P, S))                  # (B,T,P,S)
 
         if not use_scan:
             # Legacy parallel mode — h_prev: (B, T, P, D) broadcast across T
-            decay_full = decay.view(1, 1, P, S, 1)
+            decay_full = (decay.view(1, 1, P, S, 1) if dt is None
+                          else decay.unsqueeze(-1))                    # (…,P,S,1)
             if h_prev is None:
                 h_prev_e = torch.zeros(B, T, P, S, D, device=x.device, dtype=x.dtype)
             else:
@@ -120,8 +134,6 @@ class VectorizedMultiScaleResonance(nn.Module):
             # Real recurrence via parallel scan.
             # pscan expects (..., T, D); permute (B,T,P,S,D) -> (B,P,S,T,D)
             A_perm = A.permute(0, 2, 3, 1, 4)                          # (B,P,S,T,D)
-            X = (1.0 - decay).view(1, P, S, 1, 1) * A_perm             # (B,P,S,T,D)
-            decay_bps = decay.unsqueeze(0).expand(B, P, S)             # (B,P,S)
 
             # Initial state: h_prev is the per-scale state (B, P, S, D).
             # If only (B, P, D) is passed, broadcast across scales (zero-init common case).
@@ -137,7 +149,16 @@ class VectorizedMultiScaleResonance(nn.Module):
                     f"expected (B,P,S,D)=({B},{P},{S},{D}) or (B,P,D)=({B},{P},{D})"
                 )
 
-            H = pscan_constant_A(decay_bps, X, h_init=h_init)          # (B,P,S,T,D)
+            if dt is None:
+                # Fast path: decay constant in T → constant-A scan (unchanged).
+                X = (1.0 - decay).view(1, P, S, 1, 1) * A_perm         # (B,P,S,T,D)
+                decay_bps = decay.unsqueeze(0).expand(B, P, S)         # (B,P,S)
+                H = pscan_constant_A(decay_bps, X, h_init=h_init)      # (B,P,S,T,D)
+            else:
+                # Continuous-time path: per-step decay → general scan.
+                decay_pst = decay.permute(0, 2, 3, 1)                  # (B,P,S,T)
+                X = (1.0 - decay_pst).unsqueeze(-1) * A_perm           # (B,P,S,T,D)
+                H = pscan(decay_pst, X, h_init=h_init)                 # (B,P,S,T,D)
             h_per_scale = H.permute(0, 3, 1, 2, 4)                     # (B,T,P,S,D)
 
         # 3. Blend across scales with softmax(blend_weights)
@@ -318,10 +339,13 @@ class MTLNNLayer(nn.Module):
         h_prev: torch.Tensor = None,           # (B,P,S,D) [real] or (B,P,D) [legacy] or None
         position_offset: int = 0,
         use_scan: bool = True,
+        dt: torch.Tensor = None,               # (B,T)/(T,) per-step elapsed time, or None
     ):
         """
         use_scan=True (default): real recurrence via parallel scan.
         use_scan=False         : legacy parallel mode (h_prev broadcast across T).
+        dt: None → uniform time steps (default). (B,T)/(T,) → per-step elapsed
+            time for irregularly-sampled inputs (threaded into the CfLTC decay).
 
         Returns (out, h_last_per_scale) where h_last_per_scale: (B, P, S, D) is
         the per-scale recurrent state to cache for the next forward.
@@ -336,7 +360,7 @@ class MTLNNLayer(nn.Module):
         # 2. Run the resonance bank. It accepts h_prev in either form and
         # returns the per-scale state we need to cache.
         h_stack, h_last_per_scale = self.resonance(
-            x_split, h_prev, use_scan=use_scan
+            x_split, h_prev, use_scan=use_scan, dt=dt
         )                                                              # (B,T,P,D), (B,P,S,D)
 
         # 4. Lateral coupling with GTP temporal gate.

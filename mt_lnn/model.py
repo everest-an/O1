@@ -76,6 +76,7 @@ class MTLNNBlock(nn.Module):
         position_offset: int = 0,
         use_cache: bool = False,
         use_lnn_recurrence: bool = True,
+        dt: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[LayerCache]]:
 
         past_kv      = layer_cache[0] if layer_cache is not None else None
@@ -103,6 +104,7 @@ class MTLNNBlock(nn.Module):
             self.lnn_norm(x), h_prev,
             position_offset=position_offset,
             use_scan=use_lnn_recurrence,
+            dt=dt,
         )
         x = x + lnn_out
 
@@ -173,6 +175,7 @@ class MTLNNModel(nn.Module):
         use_cache: bool = False,
         position_offset: Optional[int] = None,
         use_lnn_recurrence: bool = True,
+        dt: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
         """
         Args:
@@ -208,6 +211,7 @@ class MTLNNModel(nn.Module):
                 position_offset=position_offset,
                 use_cache=use_cache,
                 use_lnn_recurrence=use_lnn_recurrence,
+                dt=dt,
             )
             if use_cache:
                 new_cache.layers.append(new_layer_cache)

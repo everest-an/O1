@@ -1,76 +1,147 @@
 # MT-LNN Benchmarks
 
-End-to-end benchmark suite for MT-LNN. Designed to be reproducible on CPU in
-under 5 minutes per task. The suite tests the architecture's three claimed
-strengths: (1) long-range selective memory via `h_prev` recurrence, (2) global
-information bottleneck via GWTB, and (3) consciousness-relevant integration
-collapse via the Anesthesia Validation Protocol.
+End-to-end benchmark suite for MT-LNN. All headline numbers are reproduced on a
+single RTX 5060 Laptop GPU (8 GB) with the corrected evaluation harness.
 
-## Headline result: head-to-head at matched parameter count
+## WikiText-103 language modeling (~84M, matched step budget)
+
+The one task where MT-LNN shows a genuine, reproducible advantage. Three models
+at ~84–92M params trained for an identical budget (3000 optimizer steps ≈ 1
+epoch, global batch 32, seq 512) on a single 8 GB GPU. Reproduce with
+`python benchmarks/wikitext_comparison.py`:
+
+| Model | #Params | Val PPL ↓ | Tok/s ↑ | Peak GB |
+|---|---:|---:|---:|---:|
+| Transformer | 84.5M | 326.3 | 18,166 | 3.4 |
+| LNN | 92.2M | 343.5 | 17,195 | 3.5 |
+| **MT-LNN** | 84.2M | **214.8** | 5,674 | 6.9 |
+
+At matched optimizer-step budget MT-LNN reaches 34% lower validation perplexity
+than the Transformer — a real **sample-efficiency** advantage. Honest caveats:
+(1) all three are far from convergence (single epoch), so this is not final LM
+quality; (2) MT-LNN is ~3.2× slower per token, so a wall-clock-matched budget
+would shrink the gap. A longer, wall-clock-matched run is the next step.
+
+## Continuous-time / irregular sampling (the liquid niche)
+
+MT-LNN threads a per-step Δt into the CfLTC decay `exp(-Δt/τ)` (added 2026-07;
+`dt=None` keeps the constant-step LM path byte-identical). Ablation on an
+irregularly-sampled sine-prediction task — the last two rows share weights and
+differ **only** in whether Δt enters the decay. `python benchmarks/irregular_sampling.py`:
+
+| Variant | test MSE ↓ |
+|---|---:|
+| Transformer (Δt as feature) | 0.189 ± 0.024 |
+| LNN (Δt as feature) | 0.217 ± 0.009 |
+| MT-LNN (Δt as feature only) | 0.204 ± 0.012 |
+| **MT-LNN + Δt-in-decay** | **0.180 ± 0.023** |
+
+Threading Δt into the decay improves MSE 11.7% (all 3 seeds consistent) and
+gives the best variant — direct evidence the continuous-time mechanism works.
+
+**PhysioNet-2012 ICU mortality (real clinical, irregular sampling).** 4000 ICU
+stays, event-stream of (Δt, variable, value) over 48h, predict in-hospital
+death. 3 seeds. `python benchmarks/preprocess_physionet.py && python benchmarks/physionet_mortality.py`:
+
+| Variant | AUROC ↑ | AUPRC ↑ |
+|---|---:|---:|
+| Transformer | 0.797 ± 0.018 | 0.410 |
+| LNN | 0.777 ± 0.039 | 0.357 |
+| **MT-LNN (Δt feature only)** | **0.823 ± 0.025** | **0.441** |
+| MT-LNN + Δt-in-decay | 0.814 ± 0.034 | 0.422 |
+
+Two honest findings: (1) the full MT-LNN architecture **leads on real ICU data**
+(AUROC 0.823 vs 0.797/0.777, matching the CfC/LTC literature); (2) but Δt-in-decay
+gives **no gain here** (0.814 ≤ 0.823) — the opposite of the synthetic task. The
+continuous-time decay is task-dependent: decisive when the signal is strictly a
+function of elapsed time, redundant when Δt is already captured by features.
+
+## ETT time-series forecasting (honest, mixed)
+
+ETTh1 univariate, L=96→H=96, 3 seeds. `python benchmarks/ett_forecasting.py`:
+
+| Model | test MSE ↓ | test MAE ↓ |
+|---|---:|---:|
+| Transformer | 0.170 ± 0.023 | 0.343 |
+| **LNN (CfLTC)** | **0.156 ± 0.003** | **0.330** |
+| MT-LNN (full) | 0.200 ± 0.052 | 0.381 |
+
+The plain liquid layer wins; the full microtubule machinery is a net liability
+for low-dim regression. Reported as-is — MT-LNN's complexity helps LM but not
+time-series regression.
+
+## Head-to-head at matched parameter count (Selective Copy)
 
 Three architectures trained on identical Selective Copy data with identical
-hyperparameters, parameter-matched to ~200K each. MT-LNN now uses **real
-parallel-scan recurrence** (no longer "fake parallel mode"):
+hyperparameters, parameter-matched to ~200K each, **5 seeds** (mean ± std),
+with the **corrected evaluation harness**. MT-LNN uses **real parallel-scan
+recurrence** (validated bit-exact in `tests/test_parallel_scan.py`):
 
-| Model | #Params | Training tok-acc | **Held-out tok-acc** | **Held-out seq-exact** | AVP responsive |
-|---|---:|---:|---:|---:|:---:|
-| Random baseline | — | — | 0.250 | 0.0039 | — |
-| Vanilla Transformer | 199,464 | 0.938 | 0.432 | 0.023 | ✗ no |
-| LNN (CfLTC FFN only) | 135,930 | 0.969 | 0.433 | 0.023 | ✗ no |
-| **MT-LNN (with pscan)** | **203,697** | **0.984** | **0.983** | **0.965** | **✓ (+8.499)** |
-| MT-LNN advantage | — | — | **+0.55 (×2.3)** | **+0.942 (×42)** | — |
+| Model | #Params | **Held-out tok-acc** | **Held-out seq-exact** | AVP responsive |
+|---|---:|---:|---:|:---:|
+| Random baseline | — | 0.250 | 0.0039 | — |
+| Vanilla Transformer | 199,464 | 0.920 ± 0.031 | 0.796 ± 0.076 | ✗ no |
+| LNN (CfLTC FFN only) | 135,930 | 0.902 ± 0.038 | 0.734 ± 0.073 | ✗ no |
+| **MT-LNN (with pscan)** | **203,697** | **0.946 ± 0.035** | **0.866 ± 0.089** | **✓ (Δ Φ̂ +7.68)** |
+
+> ⚠️ **Correction (2026-07-16).** Earlier versions of this table reported
+> MT-LNN seq-exact 0.965 vs Transformer 0.023 — a "×42 advantage" — and
+> claimed the gap grows with sequence length. **Both claims were evaluation
+> artefacts.** `evaluate_selective_copy` fed the cache-less baselines a single
+> token per decode step (no context), collapsing them to blind guessing; their
+> old 0.43 tok / 0.02 seq scores exactly match the theoretical blind-guess
+> floor. With the fix (full-sequence recompute for cache-less models) and 5
+> seeds, the three architectures are **broadly comparable** and MT-LNN's edge
+> is small and within seed variance. See `BENCHMARK_AUDIT_2026-07-16.md`.
 
 ### Long-context sweep: does the temporal advantage grow with T?
 
-The Selective Copy task at three sequence lengths, same models, same recipe.
-Reproduce with `python benchmarks/long_context.py` (~7 min on CPU).
+The Selective Copy task at three sequence lengths, same models, same recipe,
+5 seeds. Reproduce with `python benchmarks/multi_seed_sweep.py`.
 
-**Held-out sequence-exact accuracy:**
+**Held-out sequence-exact accuracy (mean ± std):**
 
-| T_total | Transformer | LNN | **MT-LNN** | MT-LNN advantage |
-|---:|---:|---:|---:|---:|
-| 37  (steps=600) | 0.031 | 0.031 | **0.523** | ×17 |
-| 101 (steps=600) | 0.016 | 0.016 | **0.438** | **×27** |
-| 229 (steps=500) | 0.016 | 0.016 | **0.094** | ×6 |
-
-**Held-out token accuracy:**
-
-| T_total | Transformer | LNN | **MT-LNN** |
+| T_total | Transformer | LNN | MT-LNN |
 |---:|---:|---:|---:|
-| 37  | 0.475 | 0.475 | **0.760** |
-| 101 | 0.438 | 0.424 | **0.756** |
-| 229 | 0.387 | 0.434 | **0.602** |
+| 37  (steps=600) | 0.560 ± 0.034 | 0.526 ± 0.048 | **0.583 ± 0.139** |
+| 101 (steps=600) | 0.463 ± 0.061 | **0.517 ± 0.104** | 0.415 ± 0.130 |
+| 229 (steps=500) | 0.223 ± 0.022 | **0.277 ± 0.066** | 0.039 ± 0.049 |
 
-**Interpretation:**
+**Held-out token accuracy (mean ± std):**
 
-1. **MT-LNN's advantage grows from ×17 → ×27 going from T=37 to T=101** —
-   real evidence that the temporal-recurrence inductive bias is what gives
-   it long-range memory, not just better hyperparameters at the short-task
-   default.
-2. **At T=229, all three models are training-budget-limited** (only 500
-   steps for a 229-token task with batch=8). MT-LNN still wins by ×6 on
-   sequence accuracy and is the only architecture that exceeds the random
-   baseline meaningfully.
-3. **Transformer's token accuracy degrades from 0.475 → 0.387 as T grows**
-   while MT-LNN holds at ~0.60-0.76 — the recurrent state compactly stores
-   the K_mem retrieval cues even as the noise prefix lengthens.
+| T_total | Transformer | LNN | MT-LNN |
+|---:|---:|---:|---:|
+| 37  | 0.828 ± 0.019 | 0.814 ± 0.016 | **0.807 ± 0.071** |
+| 101 | 0.785 ± 0.031 | **0.816 ± 0.049** | 0.734 ± 0.055 |
+| 229 | 0.647 ± 0.025 | **0.678 ± 0.035** | 0.445 ± 0.097 |
 
-### Parallel scan ablation (proves real recurrence matters)
+**Interpretation (honest, negative):**
 
-| Variant | Final train loss | Held-out tok-acc | Held-out seq-exact |
-|---|---:|---:|---:|
-| MT-LNN with legacy parallel mode (h_prev broadcast across T) | 0.076 | 0.942 | 0.883 |
-| **MT-LNN with parallel scan (real h_t recurrence)** | **0.059** | **0.983** | **0.965** |
-| Improvement from real recurrence | **~1.3× loss** | +4.1 pp | **+8.2 pp** |
+1. **The advantage does NOT grow with T.** MT-LNN is at best tied at T=37
+   (0.583 vs 0.560, overlapping std) and is beaten by both plain baselines
+   at T=101 and T=229. The original "×17 → ×27 → ×34 growing advantage" was
+   a product of the eval bug (baselines pinned at the ~0.02 blind-guess floor).
+2. **MT-LNN's training is unstable at long T.** At T=229 it collapses to
+   0.039 ± 0.049 (near the random floor, huge relative variance) while the
+   baselines hold 0.22–0.28. This is a real limitation of the current recipe.
+3. **MT-LNN trains ~3× slower** at every length (recurrent scan overhead).
 
-The pscan path gives a strictly better model on every metric — confirming
-that the "temporal" claim is not just branding. Real recurrence does real
-work.
+Whether a longer/better-tuned training recipe restores a long-T advantage is
+an open question. The data as it stands does not support the temporal-scaling
+claim.
 
-Reproduce in ~50 seconds on CUDA:
+### Parallel scan is correct (not a performance claim)
+
+The pscan path is validated **bit-exact** against a sequential reference
+(`tests/test_parallel_scan.py`, 7 assertions, diff < 1e-5 fp32) — the
+recurrence `h_t = decay·h_{t-1} + (1-decay)·A_t` is real, not a broadcast
+approximation. This validates *correctness of the implementation*, and should
+not be confused with a benchmark win over baselines.
+
+Reproduce the 5-seed sweep (~25 min on an 8 GB laptop GPU):
 
 ```bash
-python benchmarks/compare_baselines.py
+python benchmarks/multi_seed_sweep.py --seeds 5
 ```
 
 ### What this shows

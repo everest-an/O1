@@ -1,0 +1,65 @@
+{
+  "config": {
+    "task": "parity",
+    "k": 2,
+    "T_train": 64,
+    "T_test": 256,
+    "steps": 2000,
+    "lr": 0.003,
+    "seeds": 3,
+    "out_json": "benchmarks/state_tracking_results.json"
+  },
+  "results": {
+    "Transformer": [
+      {
+        "acc_in_dist": 0.5025634765625,
+        "acc_len_gen": 0.5027999877929688,
+        "train_time": 16.53285312652588
+      },
+      {
+        "acc_in_dist": 0.499969482421875,
+        "acc_len_gen": 0.5014419555664062,
+        "train_time": 15.753022909164429
+      },
+      {
+        "acc_in_dist": 0.500732421875,
+        "acc_len_gen": 0.49892425537109375,
+        "train_time": 16.31518840789795
+      }
+    ],
+    "LNN": [
+      {
+        "acc_in_dist": 0.5025634765625,
+        "acc_len_gen": 0.5027999877929688,
+        "train_time": 19.317756414413452
+      },
+      {
+        "acc_in_dist": 0.499969482421875,
+        "acc_len_gen": 0.5014419555664062,
+        "train_time": 21.98935294151306
+      },
+      {
+        "acc_in_dist": 0.500732421875,
+        "acc_len_gen": 0.49892425537109375,
+        "train_time": 21.057190895080566
+      }
+    ],
+    "MT-LNN": [
+      {
+        "acc_in_dist": 0.5025634765625,
+        "acc_len_gen": 0.5027999877929688,
+        "train_time": 95.04992341995239
+      },
+      {
+        "acc_in_dist": 0.499969482421875,
+        "acc_len_gen": 0.5014419555664062,
+        "train_time": 96.38498735427856
+      },
+      {
+        "acc_in_dist": 0.500732421875,
+        "acc_len_gen": 0.49892425537109375,
+        "train_time": 99.93773770332336
+      }
+    ]
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "config": {
+    "d_model": 128,
+    "n_layers": 2,
+    "n_heads": 4,
+    "epochs": 15,
+    "lr": 0.001,
+    "seeds": 3,
+    "out_json": "benchmarks/physionet_results.json"
+  },
+  "results": {
+    "Transformer": [
+      {
+        "test_auroc": 0.8107012188017059,
+        "test_auprc": 0.4656586030677943,
+        "train_time": 36.5368812084198
+      },
+      {
+        "test_auroc": 0.7770107521541556,
+        "test_auprc": 0.3433026630597036,
+        "train_time": 37.4319806098938
+      },
+      {
+        "test_auroc": 0.802004357298475,
+        "test_auprc": 0.4213987449288603,
+        "train_time": 38.30714178085327
+      }
+    ],
+    "LNN": [
+      {
+        "test_auroc": 0.8218405537041784,
+        "test_auprc": 0.4286753173084681,
+        "train_time": 143.20408129692078
+      },
+      {
+        "test_auroc": 0.7485535497007773,
+        "test_auprc": 0.3350354978800245,
+        "train_time": 149.89386701583862
+      },
+      {
+        "test_auroc": 0.7604139433551198,
+        "test_auprc": 0.3086107375965249,
+        "train_time": 161.0558521747589
+      }
+    ],
+    "MT-LNN (\u0394t feature only)": [
+      {
+        "test_auroc": 0.8474050942648738,
+        "test_auprc": 0.46165631774743954,
+        "train_time": 1132.0382845401764
+      },
+      {
+        "test_auroc": 0.7978446028159222,
+        "test_auprc": 0.3819290221618708,
+        "train_time": 1042.4463727474213
+      },
+      {
+        "test_auroc": 0.8242047930283224,
+        "test_auprc": 0.4783295068999009,
+        "train_time": 1098.9496982097626
+      }
+    ],
+    "MT-LNN + \u0394t-in-decay": [
+      {
+        "test_auroc": 0.8535806669618513,
+        "test_auprc": 0.486615669809352,
+        "train_time": 1041.4476039409637
+      },
+      {
+        "test_auroc": 0.7967520051650071,
+        "test_auprc": 0.38955019695613147,
+        "train_time": 989.7629714012146
+      },
+      {
+        "test_auroc": 0.7919389978213508,
+        "test_auprc": 0.3892066696280553,
+        "train_time": 1190.978937625885
+      }
+    ]
+  }
+}

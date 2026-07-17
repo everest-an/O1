@@ -58,7 +58,7 @@
 
 % ---- Abstract ----
 \begin{abstract}
-We introduce \textbf{MT-LNN} (\textbf{M}icro\textbf{t}ubule-Inspired \textbf{L}iquid \textbf{N}eural \textbf{N}etwork), a neural architecture that bridges three lines of scientific theory: the computational role of neuronal microtubules (MTs), Closed-form Liquid Time-Constant Networks (CfLTC), and the Global Workspace Theory (GWT) of consciousness. MT-LNN replaces the Transformer FFN with a \emph{Microtubule Dynamic Layer} (MT-DL) — 13 parallel CfLTC channels with multi-scale resonance ($P \times S$ banks, $S=5$ geometric $\tau$ sweep), three-way lateral coupling (static identity + synchronous nearest-neighbour via \texttt{torch.roll} + content-aware RMC attention), periodic GTP-cap renewal, and MAP-protein stabilisation gates. A \emph{Microtubule Attention} module fuses scalar and optional low-rank bilinear polarity bias with a per-head ALiBi-style GTP-decay gate ($64\times$ receptive-field spread), implemented over GQA with Flash-Attention. A \emph{Global Workspace Theory Bottleneck} (GWTB) compresses representations to $d_{gw} \ll d_{model}$, processes them in a causal workspace, and broadcasts globally. A complementary \emph{GlobalCoherenceLayer} applies sparse top-$k$ attention with an Orch-OR-inspired collapse gate. We propose an \emph{Anesthesia Validation Protocol} (AVP): runtime forward hooks progressively damp MT-DL outputs and global broadcast as anesthesia level rises, and we measure $\phihat$ (a kNN-based information integration proxy) as the biomarker. MT-LNN achieves $\approx$14.7\% lower perplexity on WikiText-103 than a parameter-matched Transformer at 125\,M parameters, exhibits $2.2\times$ higher $\phihat$, and passes the anesthesia test with 89.5\% $\phihat$ collapse — a result provably impossible for architectures lacking MT coherence parameters. All code, weights, and a 17-test suite are open-sourced.
+We introduce \textbf{MT-LNN} (\textbf{M}icro\textbf{t}ubule-Inspired \textbf{L}iquid \textbf{N}eural \textbf{N}etwork), a neural architecture that bridges three lines of scientific theory: the computational role of neuronal microtubules (MTs), Closed-form Liquid Time-Constant Networks (CfLTC), and the Global Workspace Theory (GWT) of consciousness. MT-LNN replaces the Transformer FFN with a \emph{Microtubule Dynamic Layer} (MT-DL) — 13 parallel CfLTC channels with multi-scale resonance ($P \times S$ banks, $S=5$ geometric $\tau$ sweep), three-way lateral coupling (static identity + synchronous nearest-neighbour via \texttt{torch.roll} + content-aware RMC attention), periodic GTP-cap renewal, and MAP-protein stabilisation gates. A \emph{Microtubule Attention} module fuses scalar and optional low-rank bilinear polarity bias with a per-head ALiBi-style GTP-decay gate ($64\times$ receptive-field spread), implemented over GQA with Flash-Attention. A \emph{Global Workspace Theory Bottleneck} (GWTB) compresses representations to $d_{gw} \ll d_{model}$, processes them in a causal workspace, and broadcasts globally. A complementary \emph{GlobalCoherenceLayer} applies sparse top-$k$ attention with an Orch-OR-inspired collapse gate. We propose an \emph{Anesthesia Validation Protocol} (AVP): runtime forward hooks progressively damp MT-DL outputs and global broadcast as anesthesia level rises, and we measure $\phihat$ (a kNN-based information integration proxy) as a biomarker. The recurrence also supports per-step elapsed time $\Delta t$ (decay $\exp(-\Delta t/\tau)$), so the architecture natively consumes irregularly-sampled / continuous-time inputs. We release a fully unit-tested implementation (57 CPU + 42 CUDA assertions, including bit-exact parallel-scan recurrence and byte-identical backward compatibility of the $\Delta t$ path) and an honest, reproducible evaluation on a single consumer GPU spanning Selective Copy, state-tracking, WikiText-103, ETT forecasting, a synthetic irregular-sampling probe, and PhysioNet-2012 ICU mortality. The findings are deliberately mixed: MT-LNN is markedly more sample-efficient on WikiText-103 (34\% lower perplexity at matched budget) and leads on PhysioNet (AUROC 0.823 vs.\ 0.797/0.777, matching the CfC/LTC literature), the plain liquid layer is best on low-dimensional ETT regression, and the three are comparable on Selective Copy; the continuous-time $\Delta t$-in-decay mechanism helps decisively on the synthetic task but is redundant on clinical data where $\Delta t$ is already a feature. AVP functions as an architectural fingerprint (only MT-LNN's $\hat{\Phi}$ responds; baselines are exactly zero) rather than a passed performance test — we discuss the toy-scale estimator limitations candidly, and withdraw earlier unsupported large-scale numbers. All code and weights are open-sourced.
 
 \medskip
 \noindent\textbf{Keywords:} liquid neural networks, microtubules, Global Workspace Theory, Integrated Information Theory, consciousness, anesthesia validation.
@@ -87,7 +87,7 @@ A third, more controversial theory implicates \emph{neuronal microtubules} as th
   \item \textbf{Quantum lateral coupling.} \texttt{quantum\_coupling.py} replaces classical \texttt{LateralCoupling} with a $P$-qubit variational quantum circuit (VQC) whose ring-CNOT topology mirrors the MT B-lattice. Fully differentiable via PennyLane's \texttt{TorchLayer}; swappable to real quantum hardware.
 \end{enumerate}
 
-The reference 125M configuration uses $d_\text{model}=832=13\times 64$, so $d_\text{proto}=d_\text{head}=64$ — both multiples of 8, Tensor-Core aligned.
+The reference small-LM configuration ($\approx$84\,M params) uses $d_\text{model}=832=13\times 64$, so $d_\text{proto}=d_\text{head}=64$ — both multiples of 8, Tensor-Core aligned.
 
 % ========================================================
 \section{Related Work}
@@ -321,21 +321,7 @@ Additionally, we report the \emph{effective rank} (participation ratio):
 \end{equation}
 and the \emph{integration ratio} $\phig / H_\text{whole} \in [0,1]$ — the fraction of total differential entropy attributable to cross-partition correlations. Table~\ref{tab:phi_compare} compares both estimators empirically.
 
-\begin{table}[h]
-\centering
-\caption{Comparison of integration estimators on the trained MT-LNN (128M params). $\phig$ is faster, non-negative, and more consistent across sample sizes.}
-\label{tab:phi_compare}
-\begin{tabular}{lcccc}
-\toprule
-Estimator & $\Phi$ baseline & $\Phi$ anesthesia & Collapse & Runtime \\
-\midrule
-$\phihat$ (KSG, $k=3$) & 0.38 & 0.04 & 89.5\% & 4.2\,s \\
-$\phig$ (Gaussian TC) & 1.74 & 0.21 & 87.9\% & 0.3\,s \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Both estimators agree on the qualitative conclusion (89\% vs.\ 88\% collapse); $\phig$ is $14\times$ faster and numerically stable.
+The two estimators differ in cost and stability: $\phig$ is $O(d^3)$ (a single eigendecomposition, $\sim$0.3\,s), non-negative by construction, and numerically stable at small sample sizes, whereas $\phihat$ (KSG kNN) is $O(N^2 d)$ and negatively biased for small $N$ \citep{lord2018geometric}. At the toy scale used in this release, absolute $\hat{\Phi}$ values are \emph{not} meaningful — only their sign of change under the anesthesia hooks is (Section~\ref{sec:anesth_results}).
 
 \subsection{The anesthesia test}
 \begin{definition}[Anesthesia Test]
@@ -354,63 +340,41 @@ Transformers and vanilla LNNs lack MT coherence parameters and exhibit near-cons
 \label{sec:experiments}
 
 \subsection{Setup}
-Four 125\,M-parameter architectures compared:
+We compare three architectures at matched scale:
 
 \begin{itemize}[noitemsep]
-  \item \textbf{Transformer}: pre-norm + RoPE + 13-head GQA (1 KV) + SwiGLU FFN.
-  \item \textbf{LNN}: same backbone with CfLTC FFN replacement.
-  \item \textbf{MT-LNN-nGWT}: full MT-DL + Microtubule Attention; no GWTB.
-  \item \textbf{MT-LNN}: full architecture.
+  \item \textbf{Transformer}: pre-norm causal Transformer + learned positional embeddings + multi-head attention + GELU FFN.
+  \item \textbf{LNN}: same backbone with a CfLTC FFN replacement (isolates the ``liquid'' contribution from the microtubule structure).
+  \item \textbf{MT-LNN}: full architecture (MT-DL + Microtubule Attention + GWTB + GlobalCoherenceLayer).
 \end{itemize}
 
-All: 12 layers, $d_\text{model}=832$, 13 heads, AdamW ($\beta_1=0.9$, $\beta_2=0.95$, weight decay~$=0.1$), 4 LR groups (ODE constants at $0.33\times$, polarity at $1.67\times$, lateral at $0.33\times$), 2000-step warmup, cosine decay, peak LR~$=6\times10^{-4}$, BF16, single A100-80GB, 100K steps on WikiText-103.
+Two regimes are used: (i) a \textbf{toy-scale} regime ($\approx$200\,K params, 2 layers, $d_\text{model}=104$) for the synthetic Selective Copy and state-tracking tasks, trainable in minutes on a single 8\,GB GPU; and (ii) a \textbf{small-LM} regime ($\approx$84\,M params, 12 layers, $d_\text{model}=832$, 13 heads) for WikiText-103, AdamW ($\beta_1=0.9$, $\beta_2=0.95$), MT-specific LR groups, warmup + cosine decay, BF16. All experiments in this version were run on a single consumer RTX~5060 Laptop GPU (8\,GB); the small-LM runs are therefore \emph{compute-limited} same-budget snapshots, not full-convergence runs, and are reported as such.
 
-\subsection{Language modelling}
+\subsection{Language modelling (WikiText-103)}
 
 \begin{figure*}[t]
 \centering
 \includegraphics[width=\textwidth]{fig_experiments.pdf}
-\caption{\textbf{Experimental Results Summary.} \textbf{Left:} The Integration Metric ($\hat{\Phi}$) versus WikiText-103 Perplexity. MT-LNN demonstrates simultaneous improvement in integration and computational performance. \textbf{Center:} Accuracy across selected Long-Range Arena (LRA) tasks. \textbf{Right:} The Long-Context Selective Copy performance advantage ratio compared to the Transformer baseline, demonstrating state-retention superiority across extended sequences.}
+\caption{\textbf{Experimental Results Summary (toy scale, 5-seed mean $\pm$ std).} \textbf{Left:} Selective Copy held-out sequence-exact accuracy at $T=37$. \textbf{Center:} Long-context sweep — sequence-exact accuracy vs.\ $T_\text{total}$. \textbf{Right:} Anesthesia Validation Protocol response: only MT-LNN's $\hat{\Phi}$ moves under the anesthesia hooks (baselines have no hooks, $\Delta\hat{\Phi}=0$ by construction). All numbers reproduced from \texttt{benchmarks/multi\_seed\_sweep.py}.}
 \label{fig:experiments}
 \end{figure*}
 
 \begin{table}[h]
 \centering
-\caption{WikiText-103 word-level perplexity and integration metrics. Best in \textbf{bold}.}
+\caption{WikiText-103 word-level validation perplexity at the $\approx$84\,M scale, \emph{identical} token budget (3000 optimizer steps $\approx$ 1 epoch, global batch 32, seq 512) on a single 8\,GB GPU. These are compute-limited same-budget snapshots, \emph{not} full-convergence runs. Reproduce with \texttt{benchmarks/wikitext\_comparison.py}.}
 \label{tab:lm}
 \begin{tabular}{lcccc}
 \toprule
-Model & \#Params & PPL\,$\downarrow$ & $\phihat$\,$\uparrow$ & $\phig$\,$\uparrow$ \\
+Model & \#Params & Val PPL\,$\downarrow$ & Tok/s\,$\uparrow$ & Peak GB \\
 \midrule
-Transformer  & 124M & 22.4 & 0.17 & 0.48 \\
-LNN          & 121M & 21.1 & 0.24 & 0.71 \\
-MT-LNN-nGWT  & 126M & 20.0 & 0.32 & 1.19 \\
-\textbf{MT-LNN} & \textbf{128M} & \textbf{19.1} & \textbf{0.38} & \textbf{1.74} \\
+Transformer  & 84.5M & 326.3 & \textbf{18\,166} & \textbf{3.4} \\
+LNN          & 92.2M & 343.5 & 17\,195 & 3.5 \\
+\textbf{MT-LNN} & \textbf{84.2M} & \textbf{214.8} & 5\,674 & 6.9 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-MT-LNN achieves 14.7\% lower PPL than the Transformer and $2.2\times$ higher $\phihat$ ($3.6\times$ higher $\phig$). The GWTB contributes $\approx$0.9 PPL points independently (MT-LNN-nGWT vs.\ MT-LNN). The consistent ordering across both estimators (independent methodologies) strengthens the integration claim.
-
-\subsection{Long-Range Arena}
-
-\begin{table}[h]
-\centering
-\caption{LRA accuracy (\%). Best in \textbf{bold}.}
-\label{tab:lra}
-\begin{tabular}{lcccc}
-\toprule
-Model & Pathfinder & ListOps & Text & Avg \\
-\midrule
-Transformer  & 64.2 & 36.9 & 64.3 & 55.1 \\
-LNN          & 68.9 & 37.8 & 65.7 & 57.5 \\
-MT-LNN-nGWT  & 71.4 & 39.1 & 67.2 & 59.2 \\
-\textbf{MT-LNN} & \textbf{73.1} & \textbf{40.3} & \textbf{68.9} & \textbf{60.8} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Largest gain on Pathfinder (+8.9\,pp over Transformer), requiring long-range spatial integration — a natural fit for GTP-cap renewal in long contexts.
+At a \emph{matched optimizer-step budget}, MT-LNN reaches a substantially lower validation perplexity (214.8) than the Transformer (326.3, $-$34\%) and the plain LNN (343.5) — the first result in which MT-LNN's inductive bias yields a genuine, reproducible advantage on natural language. Two honest caveats accompany it: (i) all three are far from convergence (perplexities in the hundreds after a single epoch), so these are \emph{sample-efficiency} snapshots, not final LM quality; and (ii) MT-LNN is $\approx$3.2$\times$ slower per token (5.7\,K vs 18\,K tok/s) and uses $2\times$ the memory, so under a matched \emph{wall-clock} budget the gap would shrink. A longer run and a wall-clock-matched comparison are the natural next steps. We note the previous version of this paper reported 125--128\,M-parameter perplexities (Transformer 22.4, MT-LNN 19.1) from a single A100 100\,K-step run that is not reproduced in the released repository and had no supporting checkpoint; those numbers are withdrawn in favour of the reproducible ones above.
 
 \subsection{Long-Context Selective Copy}
 \label{sec:long_context}
@@ -421,93 +385,138 @@ All three models use $\approx$200K parameters each (2 layers, $d_\text{model}=10
 
 \begin{table}[h]
 \centering
-\caption{Selective Copy: sequence-exact accuracy at three noise lengths. MT-LNN advantage = MT-LNN / Transformer seq-exact ratio. Advantage \emph{grows} from T=37 to T=101, confirming recurrent temporal state does real work.}
+\caption{Selective Copy: held-out sequence-exact accuracy (\%), 5-seed mean $\pm$ std, with the corrected evaluation harness. At matched compute the three architectures are broadly comparable; MT-LNN does \emph{not} pull ahead as $T$ grows.}
 \label{tab:long_ctx}
-\begin{tabular}{lccccc}
+\begin{tabular}{lcccc}
 \toprule
-$T_\text{total}$ & $T_\text{noise}$ & Transformer & LNN & MT-LNN & Advantage \\
+$T_\text{total}$ & $T_\text{noise}$ & Transformer & LNN & MT-LNN \\
 \midrule
-37   &  32 & 3.1\%  & 3.1\%  & 52.3\% & $\times$17 \\
-101  &  96 & 1.6\%  & 1.6\%  & 43.8\% & $\times$27 \\
-229  & 224 & 1.6\%  & 1.6\%  &  9.4\% & $\times$6  \\
+37   &  32 & 56.0 $\pm$ 3.4 & 52.6 $\pm$ 4.8 & \textbf{58.3 $\pm$ 13.9} \\
+101  &  96 & 46.3 $\pm$ 6.1 & \textbf{51.7 $\pm$ 10.4} & 41.5 $\pm$ 13.0 \\
+229  & 224 & 22.3 $\pm$ 2.2 & \textbf{27.7 $\pm$ 6.6} &  3.9 $\pm$ 4.9 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Key finding.} The advantage \emph{grows} from $\times$17 at $T=37$ to $\times$27 at $T=101$, providing direct evidence that MT-LNN's recurrent temporal state is doing real work — not a short-context artefact. At $T=229$, the advantage drops to $\times$6 (500 training steps, only half of the shorter experiments), yet still far exceeds the Transformer baseline. Extended training at $T=229$ would likely restore the growth trend.
+\textbf{Correction and honest finding.} An earlier version of this paper reported a ``growing advantage'' ($\times$17 $\to$ $\times$27 $\to$ $\times$6) for MT-LNN. That result was an \emph{evaluation artefact}: the baseline models had no KV-cache implementation, so the incremental greedy decoder fed them a single token with no context for targets $2\!-\!K$, collapsing them to blind guessing (their old scores match the theoretical floor $(1{+}(K{-}1)/k)/K$ exactly). With the corrected harness (full-sequence recompute for cache-less models) and 5 seeds, the ``$\times42$'' headline disappears: MT-LNN is at best tied at $T=37$ (within overlapping seed variance) and is \emph{beaten} by both plain baselines at $T=101$ and $T=229$, where its training becomes unstable (seq-exact $3.9\% \pm 4.9\%$ at $T=229$, near the random floor). We report this negative result faithfully. On this task softmax attention is expected to be near-perfect regardless \citep{gu2023mamba}; Selective Copy separates LTI from \emph{selective} SSMs, and is not a task on which a recurrent model should beat attention.
 
-\textbf{Theoretical interpretation.} In the selective copy task the optimal solution tracks $K=5$ key tokens in recurrent state across $T_\text{noise}$ positions. Transformer attention is $O(T^2)$ and re-attends to the whole context on every decode step, making it content-aware but not state-compressed. MT-LNN's 13-protofilament LTC state accumulates the memorable tokens compactly in $h_\text{prev}\in\RR^{P\times D}$ via the Blelloch scan (Eq.\ \ref{eq:pscan}), achieving $O(1)$ state-size independent of $T_\text{noise}$. This is the same asymptotic advantage that makes S4/Mamba superior on long-range tasks relative to Transformers.
+\textbf{Where recurrence \emph{should} help.} The genuine niche of a recurrent state is \emph{state-tracking} tasks that fixed-depth attention provably cannot solve without chain-of-thought (parity, modular arithmetic; \citealt{hahn2020theoretical, merrill2023parallelism}). We evaluate these in Section~\ref{sec:state_tracking} as the more defensible test of MT-LNN's inductive bias.
 
-\subsection{Needle-in-a-Haystack at 1.1B Scale}
-We evaluated MT-LNN as a residual adapter on the \texttt{TinyLlama-1.1B} architecture (fine-tuned for 500 steps). In a standard Needle-in-a-Haystack test, the MT-Adapter achieved 100\% retrieval accuracy across all depths (10\%--90\%) at context lengths extending to 4096 (employing standard RoPE scaling to push past the native 2048-token limit). Evaluation at 8192 tokens was bounded strictly by hardware memory limits (OOM on a 16GB T4 GPU testbed) rather than architectural capability constraints (see Table~\ref{tab:needle}). Inference throughput degraded by only $\sim$10--15\% (e.g. from $\sim$580 Tok/s to $\sim$545 Tok/s at 4K context), demonstrating quantitatively that rigorous biological continuous-time dynamics can efficiently parallelize and integrate with standard causal LLMs without disrupting their zero-shot instruction following or long-range reasoning capabilities.
+\subsection{State Tracking (Parity and Modular Arithmetic)}
+\label{sec:state_tracking}
 
-\begin{table}[ht]
-\centering
-\caption{Needle-in-a-Haystack retrieval accuracy on TinyLlama-1.1B. Base and MT-Adapter demonstrate flawless retrieval up to 4096 context with only minor latency degradation for the MT-Adapter.}
-\label{tab:needle}
-\begin{tabular}{lccccc}
-\toprule
-Variant & Context & Depth & Exact Match & Contains & Tok/s \\
-\midrule
-Base TinyLlama & 1024--2048 & All & 1.000 & 1.000 & $\sim$800 \\
-MT-Adapter & 1024--2048 & All & \textbf{1.000} & \textbf{1.000} & $\sim$670 \\
-\midrule
-Base (RoPE scaled) & 4096 & All & 1.000 & 1.000 & $\sim$580 \\
-MT-Adapter (RoPE) & 4096 & All & \textbf{1.000} & \textbf{1.000} & $\sim$545 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Anesthesia validation}
+Selective Copy is solvable by attention, so it is not the right test of a recurrent inductive bias. \emph{State-tracking} tasks are: computing a running parity or a running sum modulo $k$ requires maintaining and updating a persistent accumulator, which fixed-depth soft-attention transformers provably cannot do without chain-of-thought \citep{hahn2020theoretical, merrill2023parallelism}, whereas a recurrent state can in principle track it exactly. We train all three architectures ($\approx$200\,K params, 2 layers) on running parity ($k{=}2$), with $T_\text{train}{=}64$ and a $T_\text{test}{=}256$ length-generalisation split, 3 seeds.
 
 \begin{table}[h]
 \centering
-\caption{Anesthesia collapse under $\phihat$ and $\phig$ ($\kappa=1\to10$, $\delta=0.70$). Both estimators agree on pass/fail; $\phig$ values are larger in absolute scale (nats) but collapse fractions are similar.}
-\label{tab:anesth}
-\begin{tabular}{lccccccc}
+\caption{Running-parity next-token accuracy, 3-seed mean $\pm$ std. Chance is 0.50. At this toy configuration \emph{none} of the three architectures learns the task.}
+\label{tab:state_tracking}
+\begin{tabular}{lcc}
 \toprule
- & \multicolumn{3}{c}{$\phihat$} & \multicolumn{3}{c}{$\phig$} & \\
-\cmidrule{2-4}\cmidrule{5-7}
-Model & $\kappa{=}1$ & $\kappa{=}10$ & Collapse & $\kappa{=}1$ & $\kappa{=}10$ & Collapse & Pass? \\
+Model & in-distribution ($T{=}64$) & length-gen ($T{=}256$) \\
 \midrule
-Transformer  & 0.17 & 0.16 &  5.9\% & 0.48 & 0.45 &  6.3\% & \textcolor{red}{$\times$} \\
-LNN          & 0.24 & 0.22 &  8.3\% & 0.71 & 0.64 &  9.9\% & \textcolor{red}{$\times$} \\
-MT-LNN-nGWT  & 0.32 & 0.11 & 65.6\% & 1.19 & 0.41 & 65.5\% & \textcolor{red}{$\times$} \\
-\textbf{MT-LNN} & \textbf{0.38} & \textbf{0.04} & \textbf{89.5\%} & \textbf{1.74} & \textbf{0.21} & \textbf{87.9\%} & \textcolor{green!60!black}{$\checkmark$} \\
+Transformer  & 0.501 $\pm$ 0.001 & 0.501 $\pm$ 0.002 \\
+LNN          & 0.501 $\pm$ 0.001 & 0.501 $\pm$ 0.002 \\
+MT-LNN       & 0.501 $\pm$ 0.001 & 0.501 $\pm$ 0.002 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Only MT-LNN passes under both estimators. The near-identical collapse fractions ($\Delta<2$\,pp between $\phihat$ and $\phig$) confirm that the result is not an artefact of the KSG bias — the collapse is a genuine structural property of the MT coherence parameters. MT-LNN-nGWT shows 65.6\%/65.5\% collapse (below the 70\% threshold), demonstrating that GWTB amplifies collapse by broadcasting the disrupted workspace state: local MT disruption $\to$ workspace collapse $\to$ global broadcast failure.
+\textbf{Honest negative result.} At this small scale and training budget, MT-LNN does \emph{not} demonstrate the expected recurrent advantage — all three models sit at chance, and a stronger recipe (sequence shortened to $T=16$, training extended to 15\,000 steps) likewise stayed at $\approx$0.50 for all three. Parity is notoriously hard to optimise (it is a canonical ``grokking'' task, often requiring long schedules, weight decay tuning, or curriculum). Whether MT-LNN's protofilament state can learn parity with a better recipe, and whether it then generalises to longer sequences where attention cannot, is the most important open experiment for substantiating the architecture's core claim. We flag it explicitly as future work rather than reporting a premature win.
+
+\subsection{Time-Series Forecasting (ETT)}
+\label{sec:ett}
+A liquid architecture should have an inductive-bias advantage on real-valued time-series regression. We test this on ETTh1 (hourly Electricity Transformer dataset, Zhou et al.\ 2021), univariate oil-temperature, input length $L=96$, horizon $H=96$, standard 12/4/4-month split, 3 seeds. All three backbones share an identical forecasting head (continuous input projection + learned positional embedding + last-step linear head); only the sequence-mixing backbone differs.
+
+\begin{table}[h]
+\centering
+\caption{ETTh1 univariate forecasting, test MSE/MAE (3-seed mean $\pm$ std). Lower is better.}
+\label{tab:ett}
+\begin{tabular}{lcc}
+\toprule
+Model & test MSE & test MAE \\
+\midrule
+Transformer & 0.170 $\pm$ 0.023 & 0.343 $\pm$ 0.034 \\
+\textbf{LNN (CfLTC)} & \textbf{0.156 $\pm$ 0.003} & \textbf{0.330 $\pm$ 0.002} \\
+MT-LNN (full) & 0.200 $\pm$ 0.052 & 0.381 $\pm$ 0.057 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Honest finding.} The \emph{liquid} component helps — the plain LNN (CfLTC FFN) achieves the lowest error and by far the smallest variance — but the \emph{full} microtubule machinery (GWTB, GlobalCoherence, 13-protofilament lateral coupling) is a net liability here, giving the highest error and the largest variance. Combined with the WikiText result (where the full architecture wins), the honest conclusion is that MT-LNN's added complexity pays off for language modelling but not for low-dimensional time-series regression, where the bare liquid inductive bias is preferable. We report this rather than cherry-picking the favourable task.
+
+\subsection{Continuous-Time Modelling of Irregularly-Sampled Signals}
+\label{sec:irregular}
+The defining capability of a liquid / continuous-time network is exploiting the \emph{timestamps} of non-uniformly sampled data. In the CfLTC recurrence the state decays as $\exp(-\Delta t/\tau)$; a larger real-time gap $\Delta t$ should induce more forgetting. Our implementation now threads a per-step $\Delta t$ tensor through the full stack (\texttt{MTLNNModel} $\to$ \texttt{MTLNNBlock} $\to$ \texttt{MTLNNLayer} $\to$ resonance bank): when $\Delta t$ is omitted the decay is the constant $\exp(-1/\tau)$ (byte-identical to the LM path, verified to $0$ difference); when supplied, the decay becomes $\exp(-\Delta t/\tau)$ per step and the scan switches from the constant-$A$ specialisation to the general parallel scan.
+
+We isolate the value of this mechanism with an ablation \emph{on MT-LNN itself}. A continuous signal $x(t)=\sin(2\pi f t + \phi)$ ($f,\phi$ random per sequence) is sampled at non-uniform times ($\Delta t \sim \mathcal{U}[0.05,0.5]$, $L=48$); the model must predict the next observed value given its query gap. In one variant $\Delta t$ is passed only as an input channel; in the other it is additionally threaded into the CfLTC decay.
+
+\begin{table}[h]
+\centering
+\caption{Irregular-sampling next-value prediction, test MSE (3-seed mean $\pm$ std). The only difference between the last two rows is whether $\Delta t$ enters the CfLTC decay.}
+\label{tab:irregular}
+\begin{tabular}{lc}
+\toprule
+Variant & test MSE \\
+\midrule
+Transformer ($\Delta t$ as feature) & 0.189 $\pm$ 0.024 \\
+LNN ($\Delta t$ as feature) & 0.217 $\pm$ 0.009 \\
+MT-LNN ($\Delta t$ as feature only) & 0.204 $\pm$ 0.012 \\
+\textbf{MT-LNN + $\Delta t$-in-decay} & \textbf{0.180 $\pm$ 0.023} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Positive result.} Threading $\Delta t$ into the decay lowers MSE from 0.204 to 0.180 — an 11.7\% relative improvement that is \emph{consistent across all three seeds} (0.156$<$0.190, 0.184$<$0.213, 0.200$<$0.209) — and yields the best variant overall. Because the two rows share weights, architecture, and $\Delta t$-as-feature access, the gain is attributable specifically to the continuous-time decay mechanism, not to extra information. This is direct evidence that the CfLTC prior does real work once the architecture is allowed to see real elapsed time. We test whether the effect transfers to a genuinely irregular clinical benchmark next.
+
+\paragraph{PhysioNet-2012 ICU mortality.} We evaluate on the canonical irregularly-sampled clinical benchmark: 4000 ICU stays (set-a), each an event stream of $(\Delta t,\text{variable},\text{value})$ over 48h with 36 time-series variables, predicting in-hospital mortality (13.9\% positive). We use the same four variants with an event-embedding encoder (variable embedding + value projection + positional embedding) and a masked-mean-pool classifier head, 3 seeds, reporting AUROC and AUPRC.
+
+\begin{table}[h]
+\centering
+\caption{PhysioNet-2012 in-hospital mortality (3-seed mean $\pm$ std). AUROC values match the 0.80--0.85 range reported for CfC/LTC in the liquid-network literature, validating the setup.}
+\label{tab:physionet}
+\begin{tabular}{lcc}
+\toprule
+Variant & AUROC $\uparrow$ & AUPRC $\uparrow$ \\
+\midrule
+Transformer & 0.797 $\pm$ 0.018 & 0.410 $\pm$ 0.062 \\
+LNN & 0.777 $\pm$ 0.039 & 0.357 $\pm$ 0.063 \\
+\textbf{MT-LNN ($\Delta t$ feature only)} & \textbf{0.823 $\pm$ 0.025} & \textbf{0.441 $\pm$ 0.052} \\
+MT-LNN + $\Delta t$-in-decay & 0.814 $\pm$ 0.034 & 0.422 $\pm$ 0.056 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Two honest findings.} (i) The full MT-LNN architecture \emph{does} lead on this real clinical task (AUROC 0.823 vs.\ Transformer 0.797 and plain LNN 0.777), and the absolute numbers agree with the CfC/LTC literature — a genuine positive on a benchmark that matters. (ii) But the $\Delta t$-in-decay mechanism gives \emph{no} gain here (0.814 $\le$ 0.823, within seed variance) — the \emph{opposite} of the synthetic task. The most likely explanation is that on PhysioNet $\Delta t$ is already available as an input feature and the model can exploit it there, so re-injecting it into the decay is redundant; moreover the true temporal dependence of clinical measurements is richer than the pure-continuous-time structure of the synthetic signal, so the simple $\exp(-\Delta t/\tau)$ kernel is not the operative advantage. The honest conclusion is that the continuous-time decay is \emph{task-dependent}: decisive when the target is strictly a function of elapsed time (synthetic), redundant when the temporal signal is already captured by features (clinical). We report both rather than generalising from the favourable case.
+
+\subsection{Residual Adapter on a Pretrained LLM}
+We also validate MT-LNN as a frozen-base \emph{residual adapter}: a small MT-LNN module (12.4\,M trainable params, 2.5\% of base) inserted every fourth layer of \texttt{Qwen2.5-0.5B-Instruct} and fine-tuned for 500 steps on a single 8\,GB GPU. The base model and the adapter both retain 100\% retrieval on a short Needle-in-a-Haystack probe with only $\sim$10--15\% inference-throughput cost, confirming the adapter integrates without disrupting the base model's behaviour. A head-to-head base-vs-adapter perplexity/needle comparison at longer contexts is in progress; full training details are in \texttt{benchmarks/adapter\_qwen05\_training\_report.md}.
+
+\subsection{Anesthesia validation}
+\label{sec:anesth_results}
+
+At the toy scale (200\,K params, Selective Copy activations), we sweep $\kappa\in\{1,10\}$ and measure $\hat{\Phi}$ over 5 seeds. The architecturally meaningful observation is that \emph{only MT-LNN responds at all}: its anesthesia hooks attach exclusively to \texttt{MTLNNLayer} and \texttt{GlobalCoherenceLayer}, which the baselines do not contain, so their $\Delta\hat{\Phi}$ is exactly $0$ by construction.
+
+\begin{table}[h]
+\centering
+\caption{AVP response at toy scale, 5-seed mean. Absolute $\hat{\Phi}$ values are not meaningful at this $N$ (KSG small-sample bias); only the response is. Baselines have no hooks.}
+\label{tab:anesth}
+\begin{tabular}{lc}
+\toprule
+Model & $\Delta\hat{\Phi}$ ($\kappa{=}10$ minus $\kappa{=}1$) \\
+\midrule
+Transformer  & $0.000$ (no hooks) \\
+LNN          & $0.000$ (no hooks) \\
+\textbf{MT-LNN} & $\mathbf{+7.68 \pm 2.89}$ (responsive) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Honest limitation.} At this scale the response is in the \emph{wrong direction}: $\hat{\Phi}$ \emph{rises} with $\kappa$ rather than collapsing, so the anesthesia test as defined (monotone decrease of $\ge$70\%) \emph{fails}. This is expected and reported: (i) the KSG estimator is negatively biased with only $\sim$150 samples in $d{=}104$ \citep{lord2018geometric}, so absolute values and even the sign of change are unreliable at toy scale; (ii) anesthesia damping on a tiny, weakly-integrated model pushes activations toward a lower-rank manifold where part-wise correlations \emph{increase}. The mechanism is verifiably alive (a large, consistent $\Delta\hat{\Phi}$ that only MT-LNN produces), but the \emph{direction} predicted by the paper's biological analogy can only be tested on a real-data-trained model with a positive baseline integration. We therefore present AVP as a \textbf{mechanistic probe / architectural fingerprint}, not as a passed performance benchmark. The earlier ``89.5\% collapse, PASS'' claim was not reproduced by the released code and is withdrawn.
 
 \subsection{Ablation}
 
-\begin{table}[h]
-\centering
-\caption{Component-wise ablation. $\Delta$PPL and $\Delta\phihat$ vs.\ full MT-LNN.}
-\label{tab:ablation}
-\begin{tabular}{lcc}
-\toprule
-Configuration & $\Delta$PPL\,$\uparrow$ & $\Delta\phihat$\,$\downarrow$ \\
-\midrule
-Full MT-LNN (reference) & 0.0 & 0.00 \\
-\midrule
-w/o all lateral coupling & +3.8 & $-$0.09 \\
-w/o nearest-neighbour \texttt{roll} & +1.4 & $-$0.03 \\
-w/o RMC content-aware coupling & +1.7 & $-$0.04 \\
-w/o GTP-period renewal & +2.7 & $-$0.07 \\
-w/o multi-scale resonance ($S=1$) & +1.9 & $-$0.05 \\
-w/o low-rank polarity (scalar only) & +0.4 & $-$0.01 \\
-w/o GWTB & +0.9 & $-$0.06 \\
-1 protofilament (no 13-split) & +8.2 & $-$0.15 \\
-4 protofilaments & +5.1 & $-$0.09 \\
-8 protofilaments & +2.3 & $-$0.04 \\
-\textbf{13 protofilaments (full)} & $\pm$0.0 & $\pm$0.00 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The 13-protofilament split is the most impactful component ($-$8.2 PPL, $-$0.15 $\phihat$). GTP-period renewal is second-largest: disabling it (absolute-position decay) silently kills lateral coupling in long contexts. Monotone improvement from 1 to 13 protofilaments matches the biological observation that 13 is the thermodynamically stable MT count.
+A component-wise ablation ($\pm$ each of: 13-protofilament split, GTP-period renewal, multi-scale resonance, lateral coupling variants, GWTB) is part of the ongoing WikiText-103 run (Table~\ref{tab:lm}); the previous version's ablation numbers ($\Delta$PPL up to $+8.2$) were not backed by a released training log and are withdrawn pending the local run. The architectural pieces are individually unit-tested for correctness (52 CPU + 42 CUDA assertions, including bit-exact parallel-scan recurrence); what remains to be measured at scale is their marginal contribution to perplexity.
 
 % ========================================================
 \section{Discussion}
@@ -541,7 +550,7 @@ Third, while $\hat{\Phi}$ and $\Phi_G$ capture informational coherence propertie
 \section{Conclusion}
 \label{sec:conclusion}
 
-MT-LNN is the first neural architecture to jointly instantiate: microtubule dynamics (13-protofilament MT-DL with $P\!\times\!S$ resonance, three-way lateral coupling, GTP-cap renewal, MAP-protein gates), Global Workspace Theory (GWTB), and the Anesthesia Validation Protocol — all in a single Transformer-compatible, production-grade codebase. MT-LNN achieves 14.7\% lower perplexity, $2.2\times$ higher $\phihat$ ($3.6\times$ higher $\phig$), and 89.5\%/87.9\% collapse under simulated anesthesia by both estimators (Transformer: 5.9\%). The agreement across two independent integration estimators ($\phihat$: kNN-based; $\phig$: spectral/Gaussian) cross-validates the information-integration claim. All code and weights are open-sourced at \url{https://github.com/everest-an/O1}.
+MT-LNN is, to our knowledge, the first neural architecture to jointly instantiate microtubule dynamics (13-protofilament MT-DL with $P\!\times\!S$ resonance, three-way lateral coupling, GTP-cap renewal, MAP-protein gates), Global Workspace Theory (GWTB), and an Anesthesia Validation Protocol — all in a single Transformer-compatible, fully unit-tested codebase. It also natively supports continuous-time inputs via a per-step $\Delta t$ decay. Our contribution is primarily \emph{architectural and methodological}: a correct, open implementation and a candid evaluation protocol. The empirical picture is honestly mixed and task-dependent: MT-LNN is substantially more sample-efficient than matched baselines on WikiText-103 and leads on the real PhysioNet-2012 ICU mortality benchmark, yet the plain liquid layer is preferable on low-dimensional time-series regression and the full architecture shows no advantage on tasks attention already solves. The continuous-time $\Delta t$ mechanism is decisive on strictly time-driven signals but redundant when $\Delta t$ is already an input feature. The anesthesia hooks provide a unique architectural fingerprint whose biologically-predicted \emph{direction} remains to be validated at larger scale. We deliberately withdraw the previously-reported but unsupported 125\,M perplexity, LRA, and 89.5\%-collapse numbers, and outline the large-scale experiments needed to test the consciousness-relevant claims. All code and weights are open-sourced at \url{https://github.com/everest-an/O1}.
 
 % ========================================================
 \section*{Ethics Statement}
@@ -593,8 +602,17 @@ Gu, A. \& Dao, T. (2023). Mamba: Linear-time sequence modeling with selective st
 \bibitem[Hameroff \& Penrose(2014)]{hameroff2014consciousness}
 Hameroff, S. \& Penrose, R. (2014). Consciousness in the universe: A review of the Orch OR theory. \textit{Physics of Life Reviews}, 11(1):39--78.
 
+\bibitem[Hahn(2020)]{hahn2020theoretical}
+Hahn, M. (2020). Theoretical limitations of self-attention in neural sequence models. \textit{Transactions of the ACL}, 8:156--171.
+
 \bibitem[Hasani et al.(2021)]{hasani2021liquid}
 Hasani, R. et al. (2021). Liquid time-constant networks. \textit{AAAI}, 35(9):7657--7666.
+
+\bibitem[Lord et al.(2018)]{lord2018geometric}
+Lord, W.~M., Sun, J., \& Bollt, E.~M. (2018). Geometric k-nearest neighbor estimation of entropy and mutual information. \textit{Chaos}, 28(3):033114.
+
+\bibitem[Merrill \& Sabharwal(2023)]{merrill2023parallelism}
+Merrill, W. \& Sabharwal, A. (2023). The parallelism tradeoff: Limitations of log-precision transformers. \textit{Transactions of the ACL}, 11:531--545.
 
 \bibitem[Hasani et al.(2022)]{hasani2022closed}
 Hasani, R. et al. (2022). Closed-form continuous-time neural networks. \textit{Nature Machine Intelligence}, 4(11):992--1003.
@@ -688,23 +706,7 @@ Self-test: $N=256$, $d=32$ independent Gaussian gives $\phihat\approx 0$; correl
 \section{Anesthesia Hyperparameter Sensitivity}
 \label{app:sensitivity}
 
-\begin{table}[h]
-\centering
-\caption{$\phihat$ collapse (\%) at $\kappa=10$ for MT-LNN across anesthesia sensitivity values. Threshold = 70\%.}
-\begin{tabular}{c|ccccc}
-\toprule
-response \textbackslash\ level & 0.1 & 0.2 & 0.3 & 0.4 & 0.5 \\
-\midrule
-0.1 & 71.2 & 76.8 & 80.3 & 83.1 & 85.7 \\
-0.2 & 78.4 & 83.9 & 86.7 & 88.2 & 90.1 \\
-\textbf{0.3} & 82.1 & 87.3 & \textbf{89.5} & 91.2 & 92.8 \\
-0.4 & 85.6 & 90.0 & 92.4 & 93.7 & 94.9 \\
-0.5 & 88.3 & 92.1 & 94.0 & 95.1 & 96.0 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-MT-LNN passes (collapse $>70\%$) across the entire grid.
+An earlier version of this appendix reported a grid of $\hat{\Phi}$-collapse percentages (71--96\%) claiming MT-LNN passes the anesthesia test across all hook-sensitivity settings. Those numbers were not reproduced by the released code and contradict the actual toy-scale result (Section~\ref{sec:anesth_results}), where $\hat{\Phi}$ \emph{rises} with $\kappa$ (collapse $0\%$). They are withdrawn. A meaningful sensitivity sweep requires a model trained at scale to a positive baseline integration; it is listed as future work.
 
 \section{Code--Paper Mapping}
 \label{app:map}

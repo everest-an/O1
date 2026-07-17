@@ -181,17 +181,26 @@ def evaluate_selective_copy(model, cfg: SelectiveCopyConfig, device: str = "cpu"
         prefix = ids[:, : T_n + 1]                              # (B, T_n+1) ending in SEP
         true_tokens = ids[:, T_n + 1: T_n + 1 + K]              # (B, K)
 
-        # Use dual-cache incremental decode for speed.
+        # Use dual-cache incremental decode when the model provides a cache.
+        # Models without a cache implementation (the baselines return
+        # cache=None) MUST fall back to full-sequence recompute — feeding
+        # them a single token would strip the entire context and reduce
+        # them to blind guessing, which is not a valid evaluation.
         out = model(prefix, use_cache=True)
-        cache = out["cache"]
+        cache = out.get("cache")
         logits = out["logits"][:, -1, :]                        # (B, V)
 
         preds = []
+        seq = prefix
         for _ in range(K):
             tok = logits.argmax(dim=-1, keepdim=True)           # (B, 1)
             preds.append(tok)
-            out = model(tok, cache=cache, use_cache=True)
-            cache = out["cache"]
+            if cache is not None:
+                out = model(tok, cache=cache, use_cache=True)
+                cache = out["cache"]
+            else:
+                seq = torch.cat([seq, tok], dim=1)
+                out = model(seq)
             logits = out["logits"][:, -1, :]
         preds = torch.cat(preds, dim=1)                          # (B, K)
 
