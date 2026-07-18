@@ -59,11 +59,20 @@ class VectorizedMultiScaleResonance(nn.Module):
         nn.init.normal_(self.W_in, mean=0.0, std=0.02)
 
         # log_tau in raw space (softplus-parameterised); shape (P, S).
-        # Init from config.resonance_freqs so each scale starts at a different τ.
         log_tau_init = torch.empty(P, S)
-        for s, tau_s in enumerate(config.resonance_freqs[:S]):
-            v = math.log(math.expm1(max(tau_s - config.tau_min, 1e-6)))
-            log_tau_init[:, s] = v
+        if getattr(config, "protofilament_timescales", False):
+            # Route B: each protofilament owns one distinct τ. Sweep τ
+            # geometrically across the P dimension (tau_min → tau_max), S=1.
+            for p in range(P):
+                frac = p / max(P - 1, 1)
+                tau_p = config.tau_min * (config.tau_max / config.tau_min) ** frac
+                v = math.log(math.expm1(max(tau_p - config.tau_min, 1e-6)))
+                log_tau_init[p, :] = v
+        else:
+            # Legacy: every protofilament runs the same S scales.
+            for s, tau_s in enumerate(config.resonance_freqs[:S]):
+                v = math.log(math.expm1(max(tau_s - config.tau_min, 1e-6)))
+                log_tau_init[:, s] = v
         self.log_tau = nn.Parameter(log_tau_init)
 
         # blend_weights: (P, S) — softmax → uniform at init
@@ -220,7 +229,7 @@ class LateralCoupling(nn.Module):
 
         # --- Static identity residual ---
         self.W_lat = nn.Parameter(torch.eye(n_protofilaments))
-        self.rmc_gate = nn.Parameter(torch.zeros(()))
+        self.rmc_gate = nn.Parameter(torch.zeros(()))  # NOTE: sigmoid(0)=0.5 → RMC attention contributes 50% at init
 
     def forward(self, h: torch.Tensor) -> torch.Tensor:
         # Identity / static-matrix residual

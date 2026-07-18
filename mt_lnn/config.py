@@ -52,6 +52,13 @@ class MTLNNConfig:
     n_time_scales: int = 5
     resonance_freqs: Optional[Tuple[float, ...]] = None
 
+    # Route B — protofilament time-scale ownership. When True, each of the P
+    # protofilaments OWNS one distinct τ (geometrically swept across P), instead
+    # of every protofilament redundantly running all S scales. Collapses the
+    # P×S bank to P specialised channels: less redundancy, cleaner gradients,
+    # ~S× less compute. Requires n_time_scales=1. Default False = legacy P×S.
+    protofilament_timescales: bool = False
+
     # Global Workspace Theory Bottleneck (compress → workspace SA → broadcast)
     # Workspace dim d_gw = d_model // gwtb_compression_ratio.
     # gwtb_broadcast_init is the initial value of the gated residual scalar;

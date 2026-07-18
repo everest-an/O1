@@ -42,3 +42,6 @@ data/
 # Local benchmark run logs (kept locally as evidence, not committed)
 benchmarks/gpu_repro_20260716/
 benchmarks/gpu_repro_20260716_fixed_eval/
+
+# route-B investigation run outputs
+benchmarks/real_text_needle/results*/
