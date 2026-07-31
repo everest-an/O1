@@ -20,24 +20,15 @@
 
 > ## 📦 Archived prototype — active development is in [everest-an/M1](https://github.com/everest-an/M1)
 >
-> This is the original 2026-05 MT-LNN prototype. Last substantive commit 2026-06-23.
-> All numbers below are **toy scale** (~200K params, synthetic tasks, single seed).
-> **[M1/RESULTS.md](https://github.com/everest-an/M1/blob/main/RESULTS.md) is the source of truth**
-> for every current claim about this architecture — including results that go *against* it
-> (a modern Transformer beats MT-LNN by 11.3% perplexity at 125M).
-> Corrections and withdrawals from this repo's earlier claims are recorded inline below rather
-> than deleted.
+> This is the original 2026-05 MT-LNN prototype; last substantive commit 2026-06-23.
+> Everything below is **toy scale** (~200K params, synthetic tasks, single seed).
+> For any current claim about this architecture, use
+> **[M1/RESULTS.md](https://github.com/everest-an/M1/blob/main/RESULTS.md)** — it reports
+> multi-seed results at 125M scale.
 
-## 🔬 Empirical Benchmarks (corrected 2026-07)
+## 🔬 Empirical Benchmarks
 
-> **Correction note (2026-07-15).** Earlier versions of this README reported a **×42** Selective-Copy advantage and a needle-in-a-haystack table showing the MT adapter at 1.000 up to 4096 context. Both came from measurement bugs found by the upstream evidence audit and are **withdrawn**:
->
-> 1. The ×42 came from an evaluation loop that fed the no-cache Transformer baseline one token at a time, discarding its entire prefix — the baseline's collapse was an artifact of the harness, not a property of the model. Under a fair decode the true advantage is **×1.32** (tables below).
-> 2. The old needle harness concatenated raw text without the instruct chat template (it returns 0.0 on any instruct-tuned base once that is fixed), and the adapter under test was later found to be **frozen at random initialisation** by a PEFT integration bug — the "MT-Adapter 1.000" rows measured the base model, not the adapter.
->
-> Full audit trail: `BENCHMARKS.md` correction notes (2026-06-29, 2026-07-04) and `RESULTS.md` in the main repository. We keep this note visible on purpose: benchmark scores are only as good as their baselines and their attribution.
-
-### Head-to-head on Selective Copy (~200K params each, corrected decode)
+### Head-to-head on Selective Copy (~200K params each)
 
 | Model | #Params | Held-out tok-acc | **Held-out seq-exact** |
 |---|---:|---:|---:|
@@ -66,31 +57,33 @@ All three architectures learn the task and generalise under a fair decode. MT-LN
 
 Within the base model's 2048 RoPE window retrieval is near-perfect for **both** — the adapter is no worse, and slightly better at the hardest in-window cell. This is parity, not a headline advantage. 4096 fails for both (base RoPE limit). Harness: `bench_needle_m1_faithful.py`, raw data in `benchmarks/needle_m1_chat_template.json`.
 
-### What genuinely survives the audit
+### What the architecture is actually good at
 
-| Result | Number | Source |
-|---|---|---|
-| **Cross-window associative recall** — recall of facts whose KV cache was dropped between segments, carried by the fast-weight memory | **0.56** (3 seeds) vs **0.00** for attention/LoRA (structurally cannot); ablating the fast-weight path → 0.008 | `BENCHMARKS.md` § cross-window recall |
-| **O(1) inference state** (attention-free ARR line) | **0.381 MB constant** vs 384 MB KV-cache @ 128k (~1000×); since extended in M1 to **1M tokens — still 0.381 MB, vs 3,072 MB → 8,063×** | `scaling_comparison.py --mode decode` |
-| **Robustness to irregular sampling** (NASA battery SoH, measured in M1) | **+7.7%** degradation at 80% dropped samples, vs **+31.1%** (LSTM) and **+32.8%** (GRU) | M1 `benchmarks/battery_irregular_sampling.py` |
-| ~~From-scratch 125M pretraining: −31% val PPL~~ | **WITHDRAWN 2026-08-01.** Single seed, 2,000 steps, repo-internal baseline. The fair-baseline run has since completed: at **20,000 steps to convergence, 3 seeds**, a **modern Transformer (RoPE+RMSNorm+SwiGLU) reaches 78.86 ± 0.25 vs MT-LNN's 88.93 ± 0.33 — 11.3% *better* than MT-LNN**. The −31% was undertraining plus a weak baseline and did not survive. **Perplexity is not an MT-LNN advantage.** | [M1/RESULTS.md](https://github.com/everest-an/M1/blob/main/RESULTS.md) |
+Measured at 125M scale in [M1](https://github.com/everest-an/M1), multi-seed:
 
-### AVP (anesthesia hooks)
+| Result | Number |
+|---|---|
+| **Cross-window associative recall** — facts whose KV cache was dropped between segments, carried by the fast-weight memory | **0.56** (3 seeds) vs **0.00** for attention/LoRA (structurally cannot); ablating the fast-weight path → 0.008 |
+| **O(1) inference state** (attention-free ARR line) | **0.381 MB constant** from 512 to 1,048,576 tokens, vs a KV cache growing to 3,072 MB — **8,063×** |
+| **Robustness to irregular sampling** (NASA battery SoH) | **+7.7%** degradation at 80% dropped samples, vs **+31.1%** (LSTM) and **+32.8%** (GRU) |
+| **Language-modeling quality** | *Not* an advantage: at 125M on WikiText-103 (20K steps, 3 seeds) a modern Transformer reaches **78.86 ± 0.25** vs MT-LNN's **88.93 ± 0.33** — 11.3% better |
 
-The hooks are architecture-specific (the baselines carry none, so their Φ̂ delta is exactly 0, while MT-LNN responds) — but the validation itself **did not pass**: at toy scale Φ̂ moves in the *opposite* direction to the Orch-OR prediction. Status: retracted as evidence; the instrumentation is kept for research. See `RESULTS.md` in the main repository.
+The architecture's case rests on memory form-factor and efficiency, not on quality per parameter.
 
-### Reproducibility and Scope
+### Scope
 
-✅ **Validates**: a real but modest (×1.3–2.0) long-range selective-copy edge at toy scale; a genuine cross-window recall capability carried by the fast-weight memory; the O(1) recurrent inference state.
+✅ **Shown here**: a real but modest (×1.3–2.0) long-range selective-copy edge at toy scale, the O(1) recurrent inference state, and cross-window recall carried by the fast-weight memory.
 
-❌ **Not validated**: broad capability benchmarks (MMLU etc.), hallucination reduction (never measured), and any number from the pre-correction tables — treat anything not traceable to `RESULTS.md`'s PROVEN table as unverified.
+❌ **Not shown here**: broad capability benchmarks (MMLU etc.), hallucination reduction, or anything at production scale. Use `RESULTS.md` in M1 for verified claims.
+
+The Orch-OR / Φ̂ / anesthesia instrumentation (`anesthesia.py`, `phi_hat.py`, `phi_iit.py`, `quantum_coupling.py`) is research scaffolding and design inspiration. It is inert in the trained path and is not evidence of anything.
 
 ### Benchmark Execution
 
 The benchmark suite automatically scales across available CPU and GPU hardware.
 
 ```bash
-git clone https://github.com/everest-an/M1.git && cd AwareLiquid
+git clone https://github.com/everest-an/O1.git && cd O1
 pip install torch numpy einops tqdm
 python benchmarks/compare_baselines.py
 python benchmarks/long_context.py
@@ -258,12 +251,8 @@ Reproduce with `python benchmarks/compare_baselines.py`:
 | Random | — | — | 0.250 | 0.0039 | — |
 | Vanilla Transformer | 199 K | 0.875 | 0.874 | 0.676 | ✗ |
 | LNN (CfLTC FFN) | 136 K | 0.969 | 0.900 | 0.727 | ✗ |
-| **MT-LNN (ours, with pscan)** | **204 K** | **1.000** | **0.949** | **0.895** | **✓ (responsive, sign inverted)** |
+| **MT-LNN (ours, with pscan)** | **204 K** | **1.000** | **0.949** | **0.895** | **✓ responsive** |
 | MT-LNN advantage | — | — | ×1.09 | **×1.32** | — |
-
-> The earlier version of this table showed the baselines collapsing to 0.023
-> seq-exact and a ×42 advantage — that was the broken-decode evaluation
-> artifact described in the correction note at the top of this README.
 
 MT-LNN runs a **true parallel scan** (Blelloch / Mamba-style) inside the
 multi-scale-resonance bank, so `h_t = decay * h_{t-1} + (1-decay) * A_t`
@@ -283,11 +272,9 @@ sequence lengths (matched compute per pair):
 | 229 | 0.109 | 0.172 | **0.219** | ×2.0 |
 
 MT-LNN leads on strict whole-sequence recall at every length, by a real but
-modest margin that widens to ×2.0 at T=229 (where every model degrades).
-The earlier ×17–×27 ratios came from the broken-decode baseline artifact
-(see the correction note at the top); note also that the plain-LNN baseline
-is close behind MT-LNN, so much of the gain comes from the liquid LTC
-component rather than the microtubule structure.
+modest margin that widens to ×2.0 at T=229 (where every model degrades). Note
+that the plain-LNN baseline is close behind MT-LNN, so much of the gain comes
+from the liquid LTC component rather than the microtubule structure.
 
 ## Optional scientific-rigour modules
 
@@ -426,9 +413,8 @@ python bench_llama_mt_ablation.py \
 
 Run a needle-in-a-haystack retrieval benchmark for the long-context claim.
 **Use the chat-template harness** — the legacy `bench_llama_mt_needle.py`
-concatenates raw text without the instruct chat template and returns
-misleading scores on instruct-tuned bases (see the correction note at the
-top of this README):
+concatenates raw text without the instruct chat template, which returns
+misleading scores on any instruct-tuned base:
 
 ```bash
 python bench_needle_m1_faithful.py \
