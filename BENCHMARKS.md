@@ -1,59 +1,75 @@
 # MT-LNN Benchmarks
 
+> ## ⚠️ Correction notice (2026-08-01) — read before citing anything below
+>
+> The **×42 Selective-Copy advantage and the ×17/×27/×6 long-context ratios that used to
+> headline this file are withdrawn.** They came from an evaluation loop that fed the no-cache
+> Transformer baseline one token at a time, discarding its entire prefix — the baseline's
+> collapse was an artifact of the harness, not a property of the model. Under a fair decode the
+> advantage is **×1.32**. The corrected tables are inline below; the pre-correction tables have
+> been replaced rather than kept, because they were being cited as headline numbers.
+>
+> The **Anesthesia Validation Protocol fails** (documented honestly in its own section further
+> down): Φ̂ *rises* with κ instead of collapsing — the sign is inverted versus the Orch-OR
+> prediction. It is retracted as evidence and kept only as instrumentation.
+>
+> This repository is an **archived 2026-05 prototype**, superseded by
+> [everest-an/M1](https://github.com/everest-an/M1). All numbers here are toy scale (~200K
+> params, synthetic tasks, single seed).
+> **[M1/RESULTS.md](https://github.com/everest-an/M1/blob/main/RESULTS.md) is the source of
+> truth** for any current claim about this architecture — including the fact that at 125M on
+> WikiText-103, a modern Transformer beats MT-LNN by 11.3% perplexity.
+
 End-to-end benchmark suite for MT-LNN. Designed to be reproducible on CPU in
 under 5 minutes per task. The suite tests the architecture's three claimed
 strengths: (1) long-range selective memory via `h_prev` recurrence, (2) global
-information bottleneck via GWTB, and (3) consciousness-relevant integration
-collapse via the Anesthesia Validation Protocol.
+information bottleneck via GWTB, and (3) the response of the integration proxy
+under the Anesthesia Validation Protocol (a research probe that **did not pass** —
+see its section below).
 
 ## Headline result: head-to-head at matched parameter count
 
 Three architectures trained on identical Selective Copy data with identical
-hyperparameters, parameter-matched to ~200K each. MT-LNN now uses **real
-parallel-scan recurrence** (no longer "fake parallel mode"):
+hyperparameters, parameter-matched to ~200K each, **under the corrected fair
+decode** (every model keeps its prefix):
 
-| Model | #Params | Training tok-acc | **Held-out tok-acc** | **Held-out seq-exact** | AVP responsive |
-|---|---:|---:|---:|---:|:---:|
-| Random baseline | — | — | 0.250 | 0.0039 | — |
-| Vanilla Transformer | 199,464 | 0.938 | 0.432 | 0.023 | ✗ no |
-| LNN (CfLTC FFN only) | 135,930 | 0.969 | 0.433 | 0.023 | ✗ no |
-| **MT-LNN (with pscan)** | **203,697** | **0.984** | **0.983** | **0.965** | **✓ (+8.499)** |
-| MT-LNN advantage | — | — | **+0.55 (×2.3)** | **+0.942 (×42)** | — |
+| Model | #Params | Held-out tok-acc | **Held-out seq-exact** |
+|---|---:|---:|---:|
+| Random baseline | — | 0.250 | 0.004 |
+| Vanilla Transformer | 199,464 | 0.874 | 0.676 |
+| LNN (CfLTC FFN only) | 135,930 | 0.900 | 0.727 |
+| **MT-LNN (with pscan)** | **224,900** | **0.949** | **0.895** |
+| MT-LNN advantage vs Transformer | — | ×1.09 | **×1.32** |
+
+All three architectures learn the task and generalise under a fair decode. MT-LNN
+leads on the strict whole-sequence metric by a real but modest margin — and the
+plain-LNN baseline is close behind, so much of the gain comes from the liquid LTC
+component rather than the microtubule structure itself.
 
 ### Long-context sweep: does the temporal advantage grow with T?
 
 The Selective Copy task at three sequence lengths, same models, same recipe.
 Reproduce with `python benchmarks/long_context.py` (~7 min on CPU).
 
-**Held-out sequence-exact accuracy:**
+**Held-out sequence-exact accuracy (corrected decode):**
 
-| T_total | Transformer | LNN | **MT-LNN** | MT-LNN advantage |
+| T_total | Transformer | LNN | **MT-LNN** | vs Transformer |
 |---:|---:|---:|---:|---:|
-| 37  (steps=600) | 0.031 | 0.031 | **0.523** | ×17 |
-| 101 (steps=600) | 0.016 | 0.016 | **0.438** | **×27** |
-| 229 (steps=500) | 0.016 | 0.016 | **0.094** | ×6 |
+| 37  | 0.672 | 0.703 | **0.883** | ×1.31 |
+| 101 | 0.570 | 0.727 | **0.742** | ×1.30 |
+| 229 | 0.109 | 0.172 | **0.219** | ×2.0 (all models degrade) |
 
-**Held-out token accuracy:**
+**Interpretation (corrected):**
 
-| T_total | Transformer | LNN | **MT-LNN** |
-|---:|---:|---:|---:|
-| 37  | 0.475 | 0.475 | **0.760** |
-| 101 | 0.438 | 0.424 | **0.756** |
-| 229 | 0.387 | 0.434 | **0.602** |
-
-**Interpretation:**
-
-1. **MT-LNN's advantage grows from ×17 → ×27 going from T=37 to T=101** —
-   real evidence that the temporal-recurrence inductive bias is what gives
-   it long-range memory, not just better hyperparameters at the short-task
-   default.
-2. **At T=229, all three models are training-budget-limited** (only 500
-   steps for a 229-token task with batch=8). MT-LNN still wins by ×6 on
-   sequence accuracy and is the only architecture that exceeds the random
-   baseline meaningfully.
-3. **Transformer's token accuracy degrades from 0.475 → 0.387 as T grows**
-   while MT-LNN holds at ~0.60-0.76 — the recurrent state compactly stores
-   the K_mem retrieval cues even as the noise prefix lengthens.
+1. **The advantage does not grow with T in the way previously claimed.** The old
+   "×17 → ×27" reading was an artifact of the broken baseline decode. Under a fair
+   decode the ratio is roughly flat at ×1.3 for T=37 and T=101.
+2. **At T=229 all three models are training-budget-limited** (only 500 steps for a
+   229-token task with batch=8) and all degrade sharply. MT-LNN's ×2.0 there is a
+   ratio between two poor scores (0.219 vs 0.109), not evidence of a widening edge.
+3. **The plain-LNN baseline tracks MT-LNN closely** (0.703 / 0.727 / 0.172), which
+   points at the liquid LTC recurrence — not the microtubule structure — as the
+   source of most of the gain on this task.
 
 ### Parallel scan ablation (proves real recurrence matters)
 
@@ -75,39 +91,42 @@ python benchmarks/compare_baselines.py
 
 ### What this shows
 
-1. **Selective Copy generalisation gap.** Transformer and LNN both fit the
-   training distribution (>92% token accuracy during training) but fail
-   to generalise: held-out token accuracy is ~45% (just 1.8× random),
-   and held-out sequence exact match is ~2% — barely above the 0.4%
-   random floor. They appear to memorise positions rather than learn
-   the underlying selectivity rule.
+1. **All three architectures learn the task.** The earlier claim that the
+   Transformer and LNN baselines "fail to generalise" (~2% sequence-exact) was
+   the harness bug, not the models: with their prefix intact they reach 0.676
+   and 0.727 sequence-exact respectively.
 
-2. **MT-LNN closes the gap.** Held-out token accuracy 98.3% (vs ~43%
-   for both baselines) and sequence exact match **96.5% — 42× the
-   Transformer baseline**. The architectural priors that close the gap
-   are exactly the ones the paper highlights: 13 parallel protofilaments
-   with content-aware RMC + nearest-neighbour lateral coupling, periodic
-   GTP-cap renewal, MAPGate stabilisation. None of these exist in the
-   baselines.
+2. **MT-LNN leads by a real but modest margin.** 0.895 sequence-exact vs 0.676
+   for the Transformer — **×1.32**, not the ×42 previously reported. The
+   architectural priors (13 protofilaments, RMC + nearest-neighbour lateral
+   coupling, GTP-cap renewal, MAPGate) buy a genuine edge on selective memory,
+   but a much smaller one than the broken baseline implied.
 
-3. **AVP is architecturally specific.** Anesthesia hooks attach only to
-   `MTLNNLayer` and `GlobalCoherenceLayer`. The Transformer and LNN
-   baselines contain neither, so anesthesia produces a Φ̂ delta of
-   *exactly zero*. MT-LNN's Φ̂ moves +8.499 (signed) under anesthesia —
-   verifiably responsive, even if the toy-scale sign is still inverted
-   relative to the paper's prediction (see *Anesthesia Validation
-   Protocol* section below).
+3. **Most of the gain looks like the LTC recurrence, not the microtubule
+   structure.** The plain-LNN baseline (0.727) sits closer to MT-LNN (0.895)
+   than to the Transformer (0.676). Attributing the edge specifically to the
+   microtubule priors would need an ablation that isolates them.
+
+4. **AVP is architecturally specific but did not pass.** The hooks attach only
+   to `MTLNNLayer` and `GlobalCoherenceLayer`, so the baselines' Φ̂ delta is
+   exactly zero while MT-LNN responds. But MT-LNN's Φ̂ moves in the *opposite*
+   direction to the Orch-OR prediction — the mechanism is alive, the validation
+   fails. See the *Anesthesia Validation Protocol* section below.
 
 ### What this does NOT show
 
 This is a fair comparison **at toy scale** (200K params, synthetic Selective
-Copy). It is **not** a comparison vs mainstream 125M models (GPT-2-117M,
-Mamba-130M, Pythia-160M) — those would require training MT-LNN at 125M on
-WikiText-103, which we list as future work. The honest interpretation: at
-matched parameter budget, MT-LNN's inductive biases give it a substantial
-generalisation advantage on selective-memory tasks. Whether that
-advantage scales to 100M+ params on natural language is the next
-experiment to run.
+Copy, single seed). It is **not** a comparison vs mainstream 125M models
+(GPT-2-117M, Mamba-130M, Pythia-160M).
+
+That comparison has since been run in the successor repository, and it does not
+go MT-LNN's way: at 125M on WikiText-103, trained to convergence (20,000 steps,
+3 seeds, fp32), a **modern Transformer (RoPE + RMSNorm + SwiGLU) reaches 78.86
+val PPL versus MT-LNN's 88.93 — 11.3% better**. The toy-scale selective-memory
+edge did **not** translate into a language-modeling advantage. The architecture's
+surviving claims are about memory form-factor and efficiency (O(1) inference
+state, cross-window recall, robustness to irregular sampling), not quality per
+parameter. See [M1/RESULTS.md](https://github.com/everest-an/M1/blob/main/RESULTS.md).
 
 ---
 
@@ -117,7 +136,7 @@ experiment to run.
 |---|---|---|---|
 | 1 | **WikiText-103 PPL** | Standard LM competence | hours on GPU |
 | 1 | **Selective Copy** *(below)* | Long-range memory + selectivity (Mamba §3.2) | minutes on CPU |
-| 2 | **AVP / Φ̂ collapse** *(below)* | Information integration; consciousness claim | seconds |
+| 2 | **AVP / Φ̂ collapse** *(below)* | Integration-proxy response to the damping hooks (**did not pass**; research probe only) | seconds |
 | 2 | **Long-range PPL** *(in `eval.py`)* | Φ̂ extrapolation past training seq_len | seconds |
 | 3 | **Anesthesia dose-response curve** *(in `eval.py`)* | Sigmoid match to clinical EEG | seconds |
 
@@ -178,6 +197,10 @@ emit `m_1, m_2, m_3, m_4` in order. **Random-guess baselines are 25% token /
 | Sequence exact match | **0.926** | 0.0039 | **+0.922** (235×) |
 
 Wall-clock: 153s training + 1s eval = **154s total** on CPU.
+
+> Note: these ratios are **against the random-guess floor**, not against a trained
+> baseline — they say the model solved the task, not that it beat anything. For the
+> model-vs-model comparison use the corrected head-to-head table at the top (×1.32).
 
 ### Interpretation
 

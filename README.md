@@ -18,6 +18,16 @@
 
 ---
 
+> ## 📦 Archived prototype — active development is in [everest-an/M1](https://github.com/everest-an/M1)
+>
+> This is the original 2026-05 MT-LNN prototype. Last substantive commit 2026-06-23.
+> All numbers below are **toy scale** (~200K params, synthetic tasks, single seed).
+> **[M1/RESULTS.md](https://github.com/everest-an/M1/blob/main/RESULTS.md) is the source of truth**
+> for every current claim about this architecture — including results that go *against* it
+> (a modern Transformer beats MT-LNN by 11.3% perplexity at 125M).
+> Corrections and withdrawals from this repo's earlier claims are recorded inline below rather
+> than deleted.
+
 ## 🔬 Empirical Benchmarks (corrected 2026-07)
 
 > **Correction note (2026-07-15).** Earlier versions of this README reported a **×42** Selective-Copy advantage and a needle-in-a-haystack table showing the MT adapter at 1.000 up to 4096 context. Both came from measurement bugs found by the upstream evidence audit and are **withdrawn**:
@@ -61,8 +71,9 @@ Within the base model's 2048 RoPE window retrieval is near-perfect for **both** 
 | Result | Number | Source |
 |---|---|---|
 | **Cross-window associative recall** — recall of facts whose KV cache was dropped between segments, carried by the fast-weight memory | **0.56** (3 seeds) vs **0.00** for attention/LoRA (structurally cannot); ablating the fast-weight path → 0.008 | `BENCHMARKS.md` § cross-window recall |
-| **O(1) inference state** (attention-free ARR line) | **0.381 MB constant** vs 384 MB KV-cache @ 128k context (~1000×) | `scaling_comparison.py --mode decode` |
-| From-scratch 125M pretraining signal | −31% val PPL vs a matched simple Transformer — **budget-limited: single seed, 2000 steps, repo-internal baseline**; a fair-baseline run against Mamba-130m is in progress | `scaling_comparison.py --mode train` |
+| **O(1) inference state** (attention-free ARR line) | **0.381 MB constant** vs 384 MB KV-cache @ 128k (~1000×); since extended in M1 to **1M tokens — still 0.381 MB, vs 3,072 MB → 8,063×** | `scaling_comparison.py --mode decode` |
+| **Robustness to irregular sampling** (NASA battery SoH, measured in M1) | **+7.7%** degradation at 80% dropped samples, vs **+31.1%** (LSTM) and **+32.8%** (GRU) | M1 `benchmarks/battery_irregular_sampling.py` |
+| ~~From-scratch 125M pretraining: −31% val PPL~~ | **WITHDRAWN 2026-08-01.** Single seed, 2,000 steps, repo-internal baseline. The fair-baseline run has since completed: at **20,000 steps to convergence, 3 seeds**, a **modern Transformer (RoPE+RMSNorm+SwiGLU) reaches 78.86 ± 0.25 vs MT-LNN's 88.93 ± 0.33 — 11.3% *better* than MT-LNN**. The −31% was undertraining plus a weak baseline and did not survive. **Perplexity is not an MT-LNN advantage.** | [M1/RESULTS.md](https://github.com/everest-an/M1/blob/main/RESULTS.md) |
 
 ### AVP (anesthesia hooks)
 
